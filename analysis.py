@@ -1,14 +1,9 @@
-"""
-analysis.py
-
-Contains the core analysis functions for Parts 2 through 4,
-plus a main() that runs the full pipeline and saves outputs.
-"""
-
 import os
 import sqlite3
-
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import mannwhitneyu
 
 DB_PATH = "cell-count.db"
 OUTPUT_DIR = "outputs"
@@ -37,6 +32,81 @@ def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return df
 
+def get_responder_comparison_data(conn: sqlite3.Connection) -> pd.DataFrame:
+    """
+    Part 3, filtered data for responder vs non-responder comparison.
+    Melanoma, miraclib, PBMC samples only.
+    """
+    query = """
+        SELECT
+            s.sample_id AS sample,
+            sub.subject_id,
+            sub.response,
+            cc.population,
+            cc.count
+        FROM samples s
+        JOIN subjects sub ON s.subject_id = sub.subject_id
+        JOIN cell_counts cc ON cc.sample_id = s.sample_id
+        WHERE sub.condition = 'melanoma'
+          AND sub.treatment = 'miraclib'
+          AND s.sample_type = 'PBMC'
+    """
+    df = pd.read_sql_query(query, conn)
+
+    totals = df.groupby("sample")["count"].sum().rename("total_count")
+    df = df.merge(totals, on="sample")
+    df["percentage"] = (df["count"] / df["total_count"]) * 100
+
+    return df
+
+def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Part 3, Mann-Whitney U test per population, responders vs non-responders.
+    """
+    results = []
+
+    for population in sorted(comparison_df["population"].unique()):
+        pop_df = comparison_df[comparison_df["population"] == population]
+
+        responders = pop_df[pop_df["response"] == "yes"]["percentage"]
+        non_responders = pop_df[pop_df["response"] == "no"]["percentage"]
+
+        stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided")
+
+        results.append({
+            "population": population,
+            "responder_median_pct": responders.median(),
+            "non_responder_median_pct": non_responders.median(),
+            "p_value": p_value,
+            "significant": p_value < 0.05,
+        })
+
+    return pd.DataFrame(results).sort_values("p_value").reset_index(drop=True)
+
+
+def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
+    """
+    Part 3, one boxplot per population, responders vs non-responders.
+    """
+    populations = sorted(comparison_df["population"].unique())
+
+    for population in populations:
+        pop_df = comparison_df[comparison_df["population"] == population]
+
+        plt.figure(figsize=(5, 5))
+        sns.boxplot(data=pop_df, x="response", y="percentage", order=["no", "yes"])
+        sns.stripplot(data=pop_df, x="response", y="percentage", order=["no", "yes"],
+                      color="black", alpha=0.3, size=3)
+        plt.title(f"{population}, responders vs non-responders")
+        plt.xlabel("Response to miraclib")
+        plt.ylabel("Relative frequency (%)")
+        plt.tight_layout()
+
+        out_path = os.path.join(output_dir, f"boxplot_{population}.png")
+        plt.savefig(out_path, dpi=150)
+        plt.close()
+        print(f"Saved {out_path}")
+
 
 def main():
     if not os.path.exists(DB_PATH):
@@ -51,6 +121,21 @@ def main():
     summary_df.to_csv(summary_path, index=False)
     print(f"Part 2, summary table saved to {summary_path}")
     print(summary_df.head(10))
+
+    comparison_df = get_responder_comparison_data(conn)
+    print()
+    print("Part 3, filtered sample count:", comparison_df["sample"].nunique())
+    print("Part 3, responder breakdown:")
+    print(comparison_df.drop_duplicates("subject_id")["response"].value_counts())
+
+    stats_df = run_statistical_comparison(comparison_df)
+    stats_path = os.path.join(OUTPUT_DIR, "statistical_comparison.csv")
+    stats_df.to_csv(stats_path, index=False)
+    print()
+    print(f"Part 3, statistical comparison saved to {stats_path}")
+    print(stats_df)
+
+    make_boxplots(comparison_df, OUTPUT_DIR)
 
     conn.close()
 
