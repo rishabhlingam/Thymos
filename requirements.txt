@@ -2,3 +2,5 @@ pandas
 scipy
 matplotlib
 seaborn
+fastapi
+uvicorn
