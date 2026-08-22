@@ -6,4 +6,5 @@ pipeline:
 	python analysis.py
 
 dashboard:
-	echo "TO DO: dashboard target"
+	uvicorn backend.main:app --port 8000 &
+	cd frontend && npm run dev
