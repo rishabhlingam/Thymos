@@ -107,6 +107,38 @@ def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
         plt.close()
         print(f"Saved {out_path}")
 
+def get_baseline_subset(conn: sqlite3.Connection) -> pd.DataFrame:
+    """
+    Part 4, melanoma PBMC baseline samples from miraclib treated patients.
+    """
+    query = """
+        SELECT
+            s.sample_id AS sample,
+            sub.subject_id,
+            sub.project_id,
+            sub.response,
+            sub.sex
+        FROM samples s
+        JOIN subjects sub ON s.subject_id = sub.subject_id
+        WHERE sub.condition = 'melanoma'
+          AND sub.treatment = 'miraclib'
+          AND s.sample_type = 'PBMC'
+          AND s.time_from_treatment_start = 0
+    """
+    return pd.read_sql_query(query, conn)
+
+
+def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
+    """
+    Part 4, breakdowns by project, response, and sex.
+    """
+    subjects_df = baseline_df.drop_duplicates("subject_id")
+
+    return {
+        "samples_per_project": baseline_df.groupby("project_id")["sample"].nunique(),
+        "subjects_by_response": subjects_df["response"].value_counts(),
+        "subjects_by_sex": subjects_df["sex"].value_counts(),
+    }
 
 def main():
     if not os.path.exists(DB_PATH):
@@ -136,6 +168,24 @@ def main():
     print(stats_df)
 
     make_boxplots(comparison_df, OUTPUT_DIR)
+
+    baseline_df = get_baseline_subset(conn)
+    baseline_path = os.path.join(OUTPUT_DIR, "baseline_subset.csv")
+    baseline_df.to_csv(baseline_path, index=False)
+
+    summary = summarize_baseline_subset(baseline_df)
+    print()
+    print(f"Part 4, baseline subset saved to {baseline_path}")
+    print("Total baseline samples:", baseline_df["sample"].nunique())
+    print()
+    print("Samples per project")
+    print(summary["samples_per_project"])
+    print()
+    print("Subjects by response")
+    print(summary["subjects_by_response"])
+    print()
+    print("Subjects by sex")
+    print(summary["subjects_by_sex"])
 
     conn.close()
 
