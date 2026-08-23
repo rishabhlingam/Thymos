@@ -4,6 +4,53 @@ import { ChartGridSkeleton } from './Skeleton'
 import { useApiData } from '../hooks/useApiData'
 import { useState } from 'react'
 
+function median(sortedArr) {
+  const mid = Math.floor(sortedArr.length / 2)
+  return sortedArr.length % 2 !== 0
+    ? sortedArr[mid]
+    : (sortedArr[mid - 1] + sortedArr[mid]) / 2
+}
+
+function quartile(sortedArr, q) {
+  const pos = (sortedArr.length - 1) * q
+  const base = Math.floor(pos)
+  const rest = pos - base
+  if (sortedArr[base + 1] !== undefined) {
+    return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base])
+  }
+  return sortedArr[base]
+}
+
+function buildHoverOverlay(vals, label, xaxis, yaxis) {
+  if (!vals.length) return null
+  const sorted = [...vals].sort((a, b) => a - b)
+  const min = sorted[0]
+  const max = sorted[sorted.length - 1]
+  const q1 = quartile(sorted, 0.25)
+  const med = median(sorted)
+  const q3 = quartile(sorted, 0.75)
+
+  return {
+    x: vals.map(() => label),
+    y: [max - min],
+    base: [min],
+    type: 'bar',
+    width: 0.6,
+    marker: { color: 'rgba(0,0,0,0)' },
+    xaxis,
+    yaxis,
+    customdata: [[max, q3, med, q1, min]],
+    hovertemplate:
+      'Max: %{customdata[0]:.1f}%<br>' +
+      'Q3: %{customdata[1]:.1f}%<br>' +
+      'Median: %{customdata[2]:.1f}%<br>' +
+      'Q1: %{customdata[3]:.1f}%<br>' +
+      'Min: %{customdata[4]:.1f}%' +
+      '<extra></extra>',
+    showlegend: false,
+  }
+}
+
 function ResponderBoxplot() {
   const [filters, setFilters] = useState({
     condition: 'melanoma',
@@ -50,6 +97,50 @@ function ResponderBoxplot() {
                 .filter((d) => d.population === population && d.response === 'no')
                 .map((d) => d.percentage)
 
+              const allVals = [...nonResponderVals, ...responderVals]
+              const yMin = allVals.length ? Math.min(...allVals) : 0
+              const yMax = allVals.length ? Math.max(...allVals) : 1
+              const pad = (yMax - yMin) * 0.1 || 1
+              const yRange = [Math.max(0, yMin - pad), yMax + pad]
+
+              const hoverlabelStyle = {
+                bgcolor: '#1e293b',
+                bordercolor: '#1e293b',
+                font: { color: '#ffffff', size: 12 },
+              }
+
+              const nonResponderOverlay = buildHoverOverlay(
+                nonResponderVals, 'Non responder', 'x', 'y'
+              )
+              const responderOverlay = buildHoverOverlay(
+                responderVals, 'Responder', 'x2', 'y2'
+              )
+
+              const plotData = [
+                {
+                  x: nonResponderVals.map(() => 'Non responder'),
+                  y: nonResponderVals,
+                  type: 'box',
+                  name: 'Non responder',
+                  marker: { color: '#94a3b8' },
+                  xaxis: 'x',
+                  yaxis: 'y',
+                  hoverinfo: 'skip',
+                },
+                {
+                  x: responderVals.map(() => 'Responder'),
+                  y: responderVals,
+                  type: 'box',
+                  name: 'Responder',
+                  marker: { color: '#0ea5e9' },
+                  xaxis: 'x2',
+                  yaxis: 'y2',
+                  hoverinfo: 'skip',
+                },
+              ]
+              if (nonResponderOverlay) plotData.push(nonResponderOverlay)
+              if (responderOverlay) plotData.push(responderOverlay)
+
               return (
                 <div key={population} className="border border-slate-100 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
@@ -67,16 +158,21 @@ function ResponderBoxplot() {
                       </span>
                     )}
                   </div>
+
                   <Plot
-                    data={[
-                      { y: nonResponderVals, type: 'box', name: 'Non responder', marker: { color: '#94a3b8' } },
-                      { y: responderVals, type: 'box', name: 'Responder', marker: { color: '#0ea5e9' } },
-                    ]}
+                    data={plotData}
                     layout={{
                       height: 300,
                       margin: { t: 10, b: 30, l: 40, r: 10 },
-                      yaxis: { title: '% of cells' },
                       autosize: true,
+                      hovermode: 'closest',
+                      showlegend: false,
+                      barmode: 'overlay',
+                      hoverlabel: hoverlabelStyle,
+                      xaxis: { domain: [0, 0.46], anchor: 'y', fixedrange: true },
+                      xaxis2: { domain: [0.54, 1], anchor: 'y2', fixedrange: true },
+                      yaxis: { domain: [0, 1], range: yRange, title: '% of cells', anchor: 'x' },
+                      yaxis2: { domain: [0, 1], range: yRange, showticklabels: false, anchor: 'x2' },
                     }}
                     useResizeHandler
                     style={{ width: '100%', height: '300px' }}
