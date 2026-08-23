@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TableSkeleton } from './Skeleton'
 
 function SummaryTable() {
   const [search, setSearch] = useState('')
@@ -42,7 +43,7 @@ function SummaryTable() {
   return (
     <div className="bg-white shadow rounded-xl border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-200 space-y-3">
-                <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
               Cell Population Frequencies
@@ -69,8 +70,8 @@ function SummaryTable() {
             </button>
           </div>
         </div>
-       
-               <div className="flex flex-wrap gap-3 items-start">
+
+        <div className="flex flex-wrap gap-3 items-start">
           <div>
             <input
               type="text"
@@ -103,44 +104,42 @@ function SummaryTable() {
       {!error && (
         <>
           <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 sticky top-0 z-10">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium text-slate-600">Sample</th>
-                  <th className="text-left px-4 py-2 font-medium text-slate-600">Population</th>
-                  <th className="text-right px-4 py-2 font-medium text-slate-600">Count</th>
-                  <th className="text-right px-4 py-2 font-medium text-slate-600">Total Count</th>
-                  <th className="text-right px-4 py-2 font-medium text-slate-600">Percentage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+            {loading ? (
+              <TableSkeleton rows={10} />
+            ) : (
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 sticky top-0 z-10">
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                      Loading...
-                    </td>
+                    <th className="text-left px-4 py-2 font-medium text-slate-600">Sample</th>
+                    <th className="text-left px-4 py-2 font-medium text-slate-600">Population</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-600">Count</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-600">Total Count</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-600">Percentage</th>
                   </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                      No matching samples
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row, i) => (
-                    <tr key={i} className="border-t border-slate-100">
-                      <td className="px-4 py-2 text-slate-700">{row.sample}</td>
-                      <td className="px-4 py-2 text-slate-700">{row.population}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">{row.count}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">{row.total_count}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">
-                        {row.percentage.toFixed(2)}%
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                        No matching samples
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    rows.map((row, i) => (
+                      <tr key={i} className="border-t border-slate-100">
+                        <td className="px-4 py-2 text-slate-700">{row.sample}</td>
+                        <td className="px-4 py-2 text-slate-700">{row.population}</td>
+                        <td className="px-4 py-2 text-right text-slate-700">{row.count}</td>
+                        <td className="px-4 py-2 text-right text-slate-700">{row.total_count}</td>
+                        <td className="px-4 py-2 text-right text-slate-700">
+                          {row.percentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 text-sm text-slate-600">

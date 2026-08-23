@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import FilterBar from './FilterBar'
+import { CardSkeleton } from './Skeleton'
 
 function StatCard({ label, value }) {
   return (
@@ -73,8 +74,9 @@ function BaselineSubset() {
           </p>
         </div>
 
-        {loading && <p className="text-slate-500">Loading subset...</p>}
         {error && <p className="text-red-600">Error, {error}</p>}
+
+        {loading && !error && <CardSkeleton />}
 
         {!loading && !error && subset && subset.total_samples === 0 && (
           <p className="text-slate-500">No samples match this filter combination.</p>

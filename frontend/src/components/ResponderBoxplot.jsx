@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
 import FilterBar from './FilterBar'
+import { ChartGridSkeleton } from './Skeleton'
 
 function ResponderBoxplot() {
   const [filters, setFilters] = useState({
@@ -45,8 +46,9 @@ function ResponderBoxplot() {
           </p>
         </div>
 
-        {loading && <p className="text-slate-500">Loading comparison data...</p>}
         {error && <p className="text-red-600">Error, {error}</p>}
+
+        {loading && !error && <ChartGridSkeleton count={4} />}
 
         {!loading && !error && populations.length === 0 && (
           <p className="text-slate-500">No data available for this filter combination.</p>
@@ -75,7 +77,7 @@ function ResponderBoxplot() {
                             : 'text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-slate-500'
                         }
                       >
-                        p = {popStats.p_value.toFixed(4)}
+                        p = {popStats.p_value !== null ? popStats.p_value.toFixed(4) : 'N/A'}
                         {popStats.significant ? ', significant' : ''}
                       </span>
                     )}
