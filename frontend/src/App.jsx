@@ -1,19 +1,22 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Layout from './components/Layout'
+import Overview from './components/Overview'
 import SummaryTable from './components/SummaryTable'
 import ResponderBoxplot from './components/ResponderBoxplot'
 import BaselineSubset from './components/BaselineSubset'
 
 function App() {
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-slate-800">
-          Immune Cell Population Dashboard
-        </h1>
-        <SummaryTable />
-        <ResponderBoxplot />
-        <BaselineSubset />
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Overview />} />
+          <Route path="populations" element={<SummaryTable />} />
+          <Route path="responders" element={<ResponderBoxplot />} />
+          <Route path="baseline" element={<BaselineSubset />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
