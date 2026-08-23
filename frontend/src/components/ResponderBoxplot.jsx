@@ -71,7 +71,7 @@ function ResponderBoxplot() {
       <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
         <div>
           <h2 className="text-lg font-semibold text-slate-800">
-            Responders vs Non Responders
+            Response to Miraclib
           </h2>
           <p className="text-sm text-slate-500">
             {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated patients
@@ -109,37 +109,33 @@ function ResponderBoxplot() {
                 font: { color: '#ffffff', size: 12 },
               }
 
-              const nonResponderOverlay = buildHoverOverlay(
-                nonResponderVals, 'Non responder', 'x', 'y'
-              )
-              const responderOverlay = buildHoverOverlay(
-                responderVals, 'Responder', 'x2', 'y2'
-              )
+              const noOverlay = buildHoverOverlay(nonResponderVals, 'no', 'x', 'y')
+              const yesOverlay = buildHoverOverlay(responderVals, 'yes', 'x2', 'y2')
 
               const plotData = [
                 {
-                  x: nonResponderVals.map(() => 'Non responder'),
+                  x: nonResponderVals.map(() => 'no'),
                   y: nonResponderVals,
                   type: 'box',
-                  name: 'Non responder',
+                  name: 'no',
                   marker: { color: '#94a3b8' },
                   xaxis: 'x',
                   yaxis: 'y',
                   hoverinfo: 'skip',
                 },
                 {
-                  x: responderVals.map(() => 'Responder'),
+                  x: responderVals.map(() => 'yes'),
                   y: responderVals,
                   type: 'box',
-                  name: 'Responder',
+                  name: 'yes',
                   marker: { color: '#0ea5e9' },
                   xaxis: 'x2',
                   yaxis: 'y2',
                   hoverinfo: 'skip',
                 },
               ]
-              if (nonResponderOverlay) plotData.push(nonResponderOverlay)
-              if (responderOverlay) plotData.push(responderOverlay)
+              if (noOverlay) plotData.push(noOverlay)
+              if (yesOverlay) plotData.push(yesOverlay)
 
               return (
                 <div key={population} className="border border-slate-100 rounded-lg p-3">
@@ -169,8 +165,8 @@ function ResponderBoxplot() {
                       showlegend: false,
                       barmode: 'overlay',
                       hoverlabel: hoverlabelStyle,
-                      xaxis: { domain: [0, 0.46], anchor: 'y', fixedrange: true },
-                      xaxis2: { domain: [0.54, 1], anchor: 'y2', fixedrange: true },
+                      xaxis: { domain: [0, 0.46], anchor: 'y', fixedrange: true, title: 'response' },
+                      xaxis2: { domain: [0.54, 1], anchor: 'y2', fixedrange: true, title: 'response' },
                       yaxis: { domain: [0, 1], range: yRange, title: '% of cells', anchor: 'x' },
                       yaxis2: { domain: [0, 1], range: yRange, showticklabels: false, anchor: 'x2' },
                     }}
