@@ -1,39 +1,24 @@
 import { useEffect, useState } from 'react'
 import { TableSkeleton } from './Skeleton'
+import { useApiData } from '../hooks/useApiData'
 
 function SummaryTable() {
   const [search, setSearch] = useState('')
   const [population, setPopulation] = useState('')
   const [page, setPage] = useState(1)
-  const [rows, setRows] = useState([])
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalSamples, setTotalSamples] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
   const pageSize = 50
 
-  useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams({
-      sample_search: search,
-      population,
-      page,
-      page_size: pageSize,
-    })
-    fetch(`/api/summary?${params}`)
-      .then((res) => res.json())
-      .then((json) => {
-        setRows(json.rows)
-        setTotalPages(json.total_pages)
-        setTotalSamples(json.total_samples)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [search, population, page])
+  const { data, loading, error } = useApiData('/api/summary', {
+    sample_search: search,
+    population,
+    page,
+    page_size: pageSize,
+  })
+
+  const rows = data?.rows ?? []
+  const totalPages = data?.total_pages ?? 1
+  const totalSamples = data?.total_samples ?? 0
 
   // reset to page 1 whenever the search or population filter changes
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import FilterBar from './FilterBar'
 import { CardSkeleton } from './Skeleton'
+import { useApiData } from '../hooks/useApiData'
 
 function StatCard({ label, value }) {
   return (
@@ -42,24 +43,8 @@ function BaselineSubset() {
     sample_type: 'PBMC',
     time_from_treatment_start: 0,
   })
-  const [subset, setSubset] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams(filters)
-    fetch(`/api/baseline-subset?${params}`)
-      .then((res) => res.json())
-      .then((json) => {
-        setSubset(json)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [filters])
+  const { data: subset, loading, error } = useApiData('/api/baseline-subset', filters)
 
   return (
     <div className="space-y-4">

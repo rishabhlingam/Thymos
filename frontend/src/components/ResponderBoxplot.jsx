@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
 import FilterBar from './FilterBar'
 import { ChartGridSkeleton } from './Skeleton'
+import { useApiData } from '../hooks/useApiData'
+import { useState } from 'react'
 
 function ResponderBoxplot() {
   const [filters, setFilters] = useState({
@@ -9,27 +10,11 @@ function ResponderBoxplot() {
     treatment: 'miraclib',
     sample_type: 'PBMC',
   })
-  const [dataPoints, setDataPoints] = useState([])
-  const [stats, setStats] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams(filters)
-    fetch(`/api/comparison?${params}`)
-      .then((res) => res.json())
-      .then((json) => {
-        setDataPoints(json.data_points)
-        setStats(json.stats)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [filters])
+  const { data, loading, error } = useApiData('/api/comparison', filters)
 
+  const dataPoints = data?.data_points ?? []
+  const stats = data?.stats ?? []
   const populations = [...new Set(dataPoints.map((d) => d.population))].sort()
 
   return (
