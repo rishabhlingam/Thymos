@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import FilterBar from './FilterBar'
 
 function StatCard({ label, value }) {
   return (
@@ -10,31 +11,44 @@ function StatCard({ label, value }) {
 }
 
 function BreakdownList({ title, breakdown }) {
+  const entries = Object.entries(breakdown)
   return (
     <div>
       <p className="text-sm font-medium text-slate-600 mb-2">{title}</p>
-      <div className="space-y-1">
-        {Object.entries(breakdown).map(([key, value]) => (
-          <div
-            key={key}
-            className="flex justify-between text-sm bg-slate-50 rounded px-3 py-2 border border-slate-100"
-          >
-            <span className="text-slate-600">{key}</span>
-            <span className="font-medium text-slate-800">{value}</span>
-          </div>
-        ))}
-      </div>
+      {entries.length === 0 ? (
+        <p className="text-sm text-slate-400">No data</p>
+      ) : (
+        <div className="space-y-1">
+          {entries.map(([key, value]) => (
+            <div
+              key={key}
+              className="flex justify-between text-sm bg-slate-50 rounded px-3 py-2 border border-slate-100"
+            >
+              <span className="text-slate-600">{key}</span>
+              <span className="font-medium text-slate-800">{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 function BaselineSubset() {
+  const [filters, setFilters] = useState({
+    condition: 'melanoma',
+    treatment: 'miraclib',
+    sample_type: 'PBMC',
+    time_from_treatment_start: 0,
+  })
   const [subset, setSubset] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/baseline-subset')
+    setLoading(true)
+    const params = new URLSearchParams(filters)
+    fetch(`/api/baseline-subset?${params}`)
       .then((res) => res.json())
       .then((json) => {
         setSubset(json)
@@ -44,28 +58,38 @@ function BaselineSubset() {
         setError(err.message)
         setLoading(false)
       })
-  }, [])
-
-  if (loading) return <p className="text-slate-500">Loading baseline subset...</p>
-  if (error) return <p className="text-red-600">Error, {error}</p>
+  }, [filters])
 
   return (
-    <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-800">
-          Baseline Subset, Melanoma PBMC, Miraclib
-        </h2>
-        <p className="text-sm text-slate-500">
-          Samples at time from treatment start equal to 0
-        </p>
-      </div>
+    <div className="space-y-4">
+      <FilterBar filters={filters} onChange={setFilters} excludeTreatments={['none']} />
 
-      <StatCard label="Total baseline samples" value={subset.total_samples} />
+      <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Subset Breakdown</h2>
+          <p className="text-sm text-slate-500">
+            {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated,
+            timepoint {filters.time_from_treatment_start}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <BreakdownList title="Samples per project" breakdown={subset.samples_per_project} />
-        <BreakdownList title="Subjects by response" breakdown={subset.subjects_by_response} />
-        <BreakdownList title="Subjects by sex" breakdown={subset.subjects_by_sex} />
+        {loading && <p className="text-slate-500">Loading subset...</p>}
+        {error && <p className="text-red-600">Error, {error}</p>}
+
+        {!loading && !error && subset && subset.total_samples === 0 && (
+          <p className="text-slate-500">No samples match this filter combination.</p>
+        )}
+
+        {!loading && !error && subset && subset.total_samples > 0 && (
+          <>
+            <StatCard label="Total samples" value={subset.total_samples} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <BreakdownList title="Samples per project" breakdown={subset.samples_per_project} />
+              <BreakdownList title="Subjects by response" breakdown={subset.subjects_by_response} />
+              <BreakdownList title="Subjects by sex" breakdown={subset.subjects_by_sex} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
