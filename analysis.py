@@ -1,9 +1,13 @@
+import logging
 import os
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import mannwhitneyu
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 DB_PATH = "cell-count.db"
 OUTPUT_DIR = "outputs"
@@ -229,7 +233,7 @@ def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
         out_path = os.path.join(output_dir, f"boxplot_{population}.png")
         plt.savefig(out_path, dpi=150)
         plt.close()
-        print(f"Saved {out_path}")
+        logger.info(f"Saved {out_path}")
 
 def get_baseline_subset(
     conn: sqlite3.Connection,
@@ -294,7 +298,7 @@ def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
 
 def main():
     if not os.path.exists(DB_PATH):
-        print(f"Could not find {DB_PATH}. Run load_data.py first.")
+        logger.error(f"Could not find {DB_PATH}. Run load_data.py first.")
         return
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -303,20 +307,20 @@ def main():
     summary_df = get_summary_table(conn)
     summary_path = os.path.join(OUTPUT_DIR, "summary_table.csv")
     summary_df.to_csv(summary_path, index=False)
-    print(f"Part 2, summary table saved to {summary_path}")
+    logger.info(f"Part 2, summary table saved to {summary_path}")
     print(summary_df.head(10))
 
     comparison_df = get_responder_comparison_data(conn)
     print()
-    print("Part 3, filtered sample count:", comparison_df["sample"].nunique())
-    print("Part 3, responder breakdown:")
+    logger.info(f"Part 3, filtered sample count: {comparison_df['sample'].nunique()}")
+    logger.info("Part 3, responder breakdown:")
     print(comparison_df.drop_duplicates("subject_id")["response"].value_counts())
 
     stats_df = run_statistical_comparison(comparison_df)
     stats_path = os.path.join(OUTPUT_DIR, "statistical_comparison.csv")
     stats_df.to_csv(stats_path, index=False)
     print()
-    print(f"Part 3, statistical comparison saved to {stats_path}")
+    logger.info(f"Part 3, statistical comparison saved to {stats_path}")
     print(stats_df)
 
     make_boxplots(comparison_df, OUTPUT_DIR)
@@ -327,16 +331,16 @@ def main():
 
     summary = summarize_baseline_subset(baseline_df)
     print()
-    print(f"Part 4, baseline subset saved to {baseline_path}")
-    print("Total baseline samples:", baseline_df["sample"].nunique())
+    logger.info(f"Part 4, baseline subset saved to {baseline_path}")
+    logger.info(f"Total baseline samples: {baseline_df['sample'].nunique()}")
     print()
-    print("Samples per project")
+    logger.info("Samples per project")
     print(summary["samples_per_project"])
     print()
-    print("Subjects by response")
+    logger.info("Subjects by response")
     print(summary["subjects_by_response"])
     print()
-    print("Subjects by sex")
+    logger.info("Subjects by sex")
     print(summary["subjects_by_sex"])
 
     conn.close()

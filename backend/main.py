@@ -1,17 +1,16 @@
+import logging
 import os
 import sqlite3
 import sys
-import pandas as pd
+from functools import lru_cache
 
+import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from functools import lru_cache
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis import (
-    get_summary_table,
     get_summary_page,
     get_responder_comparison_data,
     run_statistical_comparison,
@@ -19,6 +18,19 @@ from analysis import (
     summarize_baseline_subset,
     get_filter_options,
 )
+from backend.schemas import (
+    Condition,
+    Treatment,
+    SampleType,
+    SummaryResponse,
+    ComparisonResponse,
+    BaselineSubsetResponse,
+    FilterOptionsResponse,
+    HealthResponse,
+)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cell-count.db")
 
@@ -32,11 +44,24 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def on_startup():
+    logger.info(f"Starting API, using database at {DB_PATH}")
+    if not os.path.exists(DB_PATH):
+        logger.error(f"Database not found at {DB_PATH}, run 'python load_data.py' first")
+
+
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
 
-@app.get("/api/summary")
+@app.get("/api/health", response_model=HealthResponse)
+def health():
+    db_status = "connected" if os.path.exists(DB_PATH) else "missing"
+    return HealthResponse(status="ok", database=db_status)
+
+
+@app.get("/api/summary", response_model=SummaryResponse)
 def summary(
     sample_search: str = "",
     population: str = "",
@@ -47,13 +72,13 @@ def summary(
     df, total_samples = get_summary_page(conn, sample_search, population, page, page_size)
     conn.close()
 
-    return {
-        "rows": df.to_dict(orient="records"),
-        "total_samples": total_samples,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": max(1, -(-total_samples // page_size)),
-    }
+    return SummaryResponse(
+        rows=df.to_dict(orient="records"),
+        total_samples=total_samples,
+        page=page,
+        page_size=page_size,
+        total_pages=max(1, -(-total_samples // page_size)),
+    )
 
 
 @lru_cache(maxsize=128)
@@ -63,20 +88,24 @@ def _cached_comparison(condition: str, treatment: str, sample_type: str):
     stats_df = run_statistical_comparison(comparison_df)
     conn.close()
 
-    data_points = comparison_df[["population", "response", "percentage"]].to_dict(orient="records") if not comparison_df.empty else []
+    data_points = (
+        comparison_df[["population", "response", "percentage"]].to_dict(orient="records")
+        if not comparison_df.empty
+        else []
+    )
     stats_df = stats_df.where(pd.notnull(stats_df), None)
     stats = stats_df.to_dict(orient="records")
 
     return {"data_points": data_points, "stats": stats}
 
 
-@app.get("/api/comparison")
+@app.get("/api/comparison", response_model=ComparisonResponse)
 def comparison(
-    condition: str = "melanoma",
-    treatment: str = "miraclib",
-    sample_type: str = "PBMC",
+    condition: Condition = Condition.melanoma,
+    treatment: Treatment = Treatment.miraclib,
+    sample_type: SampleType = SampleType.PBMC,
 ):
-    return _cached_comparison(condition, treatment, sample_type)
+    return _cached_comparison(condition.value, treatment.value, sample_type.value)
 
 
 @lru_cache(maxsize=128)
@@ -94,16 +123,19 @@ def _cached_baseline_subset(condition: str, treatment: str, sample_type: str, ti
     }
 
 
-@app.get("/api/baseline-subset")
+@app.get("/api/baseline-subset", response_model=BaselineSubsetResponse)
 def baseline_subset(
-    condition: str = "melanoma",
-    treatment: str = "miraclib",
-    sample_type: str = "PBMC",
+    condition: Condition = Condition.melanoma,
+    treatment: Treatment = Treatment.miraclib,
+    sample_type: SampleType = SampleType.PBMC,
     time_from_treatment_start: int = 0,
 ):
-    return _cached_baseline_subset(condition, treatment, sample_type, time_from_treatment_start)
+    return _cached_baseline_subset(
+        condition.value, treatment.value, sample_type.value, time_from_treatment_start
+    )
 
-@app.get("/api/filter-options")
+
+@app.get("/api/filter-options", response_model=FilterOptionsResponse)
 def filter_options():
     conn = get_connection()
     options = get_filter_options(conn)

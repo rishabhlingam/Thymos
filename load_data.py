@@ -1,8 +1,12 @@
+import logging
 import os
 import sqlite3
 import sys
 
 import pandas as pd
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 CSV_PATH = "cell-count.csv"
 DB_PATH = "cell-count.db"
@@ -78,12 +82,12 @@ def validate(df: pd.DataFrame) -> None:
         )
 
     if errors:
-        print("Validation failed:")
+        logger.error("Validation failed:")
         for e in errors:
-            print(f" - {e}")
+            logger.error(f" - {e}")
         sys.exit(1)
 
-    print("Validation passed.")
+    logger.info("Validation passed.")
 
 
 def build_database(df: pd.DataFrame, db_path: str) -> None:
@@ -120,14 +124,14 @@ def build_database(df: pd.DataFrame, db_path: str) -> None:
 
     for table in ["projects", "subjects", "samples", "cell_counts"]:
         n = cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        print(f"{table}: {n} rows loaded")
+        logger.info(f"{table}: {n} rows loaded")
 
     conn.close()
 
 
 def main():
     if not os.path.exists(CSV_PATH):
-        print(f"Could not find {CSV_PATH} in the current directory.")
+        logger.error(f"Could not find {CSV_PATH} in the current directory.")
         sys.exit(1)
 
     if os.path.exists(DB_PATH):
@@ -136,7 +140,7 @@ def main():
     df = pd.read_csv(CSV_PATH)
     validate(df)
     build_database(df, DB_PATH)
-    print(f"Database created at {DB_PATH}")
+    logger.info(f"Database created at {DB_PATH}")
 
 
 if __name__ == "__main__":
