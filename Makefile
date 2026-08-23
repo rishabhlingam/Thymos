@@ -8,3 +8,6 @@ pipeline:
 dashboard:
 	./venv/bin/uvicorn backend.main:app --port 8000 &
 	cd frontend && npm run dev
+
+test:
+	pytest tests/ -v
