@@ -32,6 +32,54 @@ def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return df
 
+def get_summary_page(
+    conn: sqlite3.Connection,
+    sample_search: str = "",
+    population: str = "",
+    page: int = 1,
+    page_size: int = 50,
+):
+    """
+    Paginated, searchable version of the Part 2 summary table, used by the dashboard.
+    """
+    offset = (page - 1) * page_size
+
+    total_samples = pd.read_sql_query(
+        "SELECT COUNT(*) as n FROM samples WHERE sample_id LIKE ?",
+        conn,
+        params=[f"%{sample_search}%"],
+    )["n"].iloc[0]
+
+    sample_ids_df = pd.read_sql_query(
+        "SELECT sample_id FROM samples WHERE sample_id LIKE ? ORDER BY sample_id LIMIT ? OFFSET ?",
+        conn,
+        params=[f"%{sample_search}%", page_size, offset],
+    )
+    sample_ids = sample_ids_df["sample_id"].tolist()
+
+    empty_columns = ["sample", "total_count", "population", "count", "percentage"]
+    if not sample_ids:
+        return pd.DataFrame(columns=empty_columns), int(total_samples)
+
+    placeholders = ",".join("?" for _ in sample_ids)
+    query = f"""
+        SELECT sample_id AS sample, population, count
+        FROM cell_counts
+        WHERE sample_id IN ({placeholders})
+    """
+    df = pd.read_sql_query(query, conn, params=sample_ids)
+
+    totals = df.groupby("sample")["count"].sum().rename("total_count")
+    df = df.merge(totals, on="sample")
+    df["percentage"] = (df["count"] / df["total_count"]) * 100
+
+    if population:
+        df = df[df["population"] == population]
+
+    df = df[empty_columns].sort_values(["sample", "population"]).reset_index(drop=True)
+
+    return df, int(total_samples)
+
 def get_responder_comparison_data(
     conn: sqlite3.Connection,
     condition: str = "melanoma",

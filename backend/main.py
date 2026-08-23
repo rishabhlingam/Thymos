@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis import (
     get_summary_table,
+    get_summary_page,
     get_responder_comparison_data,
     run_statistical_comparison,
     get_baseline_subset,
@@ -34,11 +35,23 @@ def get_connection():
 
 
 @app.get("/api/summary")
-def summary():
+def summary(
+    sample_search: str = "",
+    population: str = "",
+    page: int = 1,
+    page_size: int = 50,
+):
     conn = get_connection()
-    df = get_summary_table(conn)
+    df, total_samples = get_summary_page(conn, sample_search, population, page, page_size)
     conn.close()
-    return df.to_dict(orient="records")
+
+    return {
+        "rows": df.to_dict(orient="records"),
+        "total_samples": total_samples,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, -(-total_samples // page_size)),
+    }
 
 
 @app.get("/api/comparison")
