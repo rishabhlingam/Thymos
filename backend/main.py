@@ -6,6 +6,8 @@ import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from functools import lru_cache
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis import (
@@ -54,12 +56,8 @@ def summary(
     }
 
 
-@app.get("/api/comparison")
-def comparison(
-    condition: str = "melanoma",
-    treatment: str = "miraclib",
-    sample_type: str = "PBMC",
-):
+@lru_cache(maxsize=128)
+def _cached_comparison(condition: str, treatment: str, sample_type: str):
     conn = get_connection()
     comparison_df = get_responder_comparison_data(conn, condition, treatment, sample_type)
     stats_df = run_statistical_comparison(comparison_df)
@@ -72,13 +70,17 @@ def comparison(
     return {"data_points": data_points, "stats": stats}
 
 
-@app.get("/api/baseline-subset")
-def baseline_subset(
+@app.get("/api/comparison")
+def comparison(
     condition: str = "melanoma",
     treatment: str = "miraclib",
     sample_type: str = "PBMC",
-    time_from_treatment_start: int = 0,
 ):
+    return _cached_comparison(condition, treatment, sample_type)
+
+
+@lru_cache(maxsize=128)
+def _cached_baseline_subset(condition: str, treatment: str, sample_type: str, time_from_treatment_start: int):
     conn = get_connection()
     baseline_df = get_baseline_subset(conn, condition, treatment, sample_type, time_from_treatment_start)
     summary_dict = summarize_baseline_subset(baseline_df)
@@ -90,6 +92,16 @@ def baseline_subset(
         "subjects_by_response": summary_dict["subjects_by_response"].to_dict(),
         "subjects_by_sex": summary_dict["subjects_by_sex"].to_dict(),
     }
+
+
+@app.get("/api/baseline-subset")
+def baseline_subset(
+    condition: str = "melanoma",
+    treatment: str = "miraclib",
+    sample_type: str = "PBMC",
+    time_from_treatment_start: int = 0,
+):
+    return _cached_baseline_subset(condition, treatment, sample_type, time_from_treatment_start)
 
 @app.get("/api/filter-options")
 def filter_options():
