@@ -1,5 +1,6 @@
 setup:
 	pip install -r requirements.txt
+	cd frontend && npm install
 
 pipeline:
 	python load_data.py
