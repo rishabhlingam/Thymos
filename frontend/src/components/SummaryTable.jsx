@@ -69,14 +69,20 @@ function SummaryTable() {
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <input
-            type="text"
-            placeholder="Search sample ID..."
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-56"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+       
+               <div className="flex flex-wrap gap-3 items-start">
+          <div>
+            <input
+              type="text"
+              placeholder="e.g. sample00001, sample00005:sample00010"
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-80"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              Comma for multiple IDs, colon for a range, or combine both
+            </p>
+          </div>
           <select
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
             value={population}

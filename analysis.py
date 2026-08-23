@@ -32,6 +32,54 @@ def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return df
 
+def _parse_sample_search(search: str):
+    """
+    Parses a sample search string into a SQL WHERE clause fragment and params.
+    Supports comma separated terms, colon separated inclusive ranges, and
+    combinations of both, e.g.
+
+    sample00001                              substring match
+    sample00001,sample00005                  multiple matches
+    sample00001:sample00010                  inclusive range
+    sample00001:sample00010,sample00050      combination
+
+    Ranges rely on sample IDs being zero padded to a fixed width, so string
+    comparison sorts the same as numeric comparison.
+    """
+    search = search.strip()
+    if not search:
+        return "1=1", []
+
+    clauses = []
+    params = []
+
+    for raw_token in search.split(","):
+        token = raw_token.strip()
+        if not token:
+            continue
+
+        if ":" in token:
+            start, end = [t.strip() for t in token.split(":", 1)]
+            if start and end:
+                if start > end:
+                    start, end = end, start
+                clauses.append("sample_id BETWEEN ? AND ?")
+                params.extend([start, end])
+            elif start:
+                clauses.append("sample_id LIKE ?")
+                params.append(f"%{start}%")
+            elif end:
+                clauses.append("sample_id LIKE ?")
+                params.append(f"%{end}%")
+        else:
+            clauses.append("sample_id LIKE ?")
+            params.append(f"%{token}%")
+
+    if not clauses:
+        return "1=1", []
+
+    return "(" + " OR ".join(clauses) + ")", params
+
 def get_summary_page(
     conn: sqlite3.Connection,
     sample_search: str = "",
@@ -41,19 +89,22 @@ def get_summary_page(
 ):
     """
     Paginated, searchable version of the Part 2 summary table, used by the dashboard.
+    sample_search supports comma separated terms and colon separated ranges,
+    see _parse_sample_search for details.
     """
     offset = (page - 1) * page_size
+    where_clause, where_params = _parse_sample_search(sample_search)
 
     total_samples = pd.read_sql_query(
-        "SELECT COUNT(*) as n FROM samples WHERE sample_id LIKE ?",
+        f"SELECT COUNT(*) as n FROM samples WHERE {where_clause}",
         conn,
-        params=[f"%{sample_search}%"],
+        params=where_params,
     )["n"].iloc[0]
 
     sample_ids_df = pd.read_sql_query(
-        "SELECT sample_id FROM samples WHERE sample_id LIKE ? ORDER BY sample_id LIMIT ? OFFSET ?",
+        f"SELECT sample_id FROM samples WHERE {where_clause} ORDER BY sample_id LIMIT ? OFFSET ?",
         conn,
-        params=[f"%{sample_search}%", page_size, offset],
+        params=where_params + [page_size, offset],
     )
     sample_ids = sample_ids_df["sample_id"].tolist()
 
