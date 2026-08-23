@@ -32,10 +32,15 @@ def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return df
 
-def get_responder_comparison_data(conn: sqlite3.Connection) -> pd.DataFrame:
+def get_responder_comparison_data(
+    conn: sqlite3.Connection,
+    condition: str = "melanoma",
+    treatment: str = "miraclib",
+    sample_type: str = "PBMC",
+) -> pd.DataFrame:
     """
     Part 3, filtered data for responder vs non-responder comparison.
-    Melanoma, miraclib, PBMC samples only.
+    Defaults match the original assignment, melanoma, miraclib, PBMC.
     """
     query = """
         SELECT
@@ -47,11 +52,11 @@ def get_responder_comparison_data(conn: sqlite3.Connection) -> pd.DataFrame:
         FROM samples s
         JOIN subjects sub ON s.subject_id = sub.subject_id
         JOIN cell_counts cc ON cc.sample_id = s.sample_id
-        WHERE sub.condition = 'melanoma'
-          AND sub.treatment = 'miraclib'
-          AND s.sample_type = 'PBMC'
+        WHERE sub.condition = ?
+          AND sub.treatment = ?
+          AND s.sample_type = ?
     """
-    df = pd.read_sql_query(query, conn)
+    df = pd.read_sql_query(query, conn, params=[condition, treatment, sample_type])
 
     totals = df.groupby("sample")["count"].sum().rename("total_count")
     df = df.merge(totals, on="sample")
@@ -61,8 +66,15 @@ def get_responder_comparison_data(conn: sqlite3.Connection) -> pd.DataFrame:
 
 def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Part 3, Mann-Whitney U test per population, responders vs non-responders.
+    Mann-Whitney U test per population, responders vs non-responders.
+    Returns an empty, correctly shaped dataframe if there's no data
+    or no valid comparison to run.
     """
+    columns = ["population", "responder_median_pct", "non_responder_median_pct", "p_value", "significant"]
+
+    if comparison_df.empty:
+        return pd.DataFrame(columns=columns)
+
     results = []
 
     for population in sorted(comparison_df["population"].unique()):
@@ -70,6 +82,16 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
 
         responders = pop_df[pop_df["response"] == "yes"]["percentage"]
         non_responders = pop_df[pop_df["response"] == "no"]["percentage"]
+
+        if len(responders) == 0 or len(non_responders) == 0:
+            results.append({
+                "population": population,
+                "responder_median_pct": responders.median() if len(responders) else None,
+                "non_responder_median_pct": non_responders.median() if len(non_responders) else None,
+                "p_value": None,
+                "significant": False,
+            })
+            continue
 
         stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided")
 
@@ -81,7 +103,10 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
             "significant": p_value < 0.05,
         })
 
-    return pd.DataFrame(results).sort_values("p_value").reset_index(drop=True)
+    if not results:
+        return pd.DataFrame(columns=columns)
+
+    return pd.DataFrame(results).sort_values("p_value", na_position="last").reset_index(drop=True)
 
 
 def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
@@ -107,9 +132,16 @@ def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
         plt.close()
         print(f"Saved {out_path}")
 
-def get_baseline_subset(conn: sqlite3.Connection) -> pd.DataFrame:
+def get_baseline_subset(
+    conn: sqlite3.Connection,
+    condition: str = "melanoma",
+    treatment: str = "miraclib",
+    sample_type: str = "PBMC",
+    time_from_treatment_start: int = 0,
+) -> pd.DataFrame:
     """
-    Part 4, melanoma PBMC baseline samples from miraclib treated patients.
+    Part 4, filtered baseline samples.
+    Defaults match the original assignment, melanoma, miraclib, PBMC, day 0.
     """
     query = """
         SELECT
@@ -120,13 +152,34 @@ def get_baseline_subset(conn: sqlite3.Connection) -> pd.DataFrame:
             sub.sex
         FROM samples s
         JOIN subjects sub ON s.subject_id = sub.subject_id
-        WHERE sub.condition = 'melanoma'
-          AND sub.treatment = 'miraclib'
-          AND s.sample_type = 'PBMC'
-          AND s.time_from_treatment_start = 0
+        WHERE sub.condition = ?
+          AND sub.treatment = ?
+          AND s.sample_type = ?
+          AND s.time_from_treatment_start = ?
     """
-    return pd.read_sql_query(query, conn)
+    return pd.read_sql_query(
+        query, conn, params=[condition, treatment, sample_type, time_from_treatment_start]
+    )
 
+def get_filter_options(conn: sqlite3.Connection) -> dict:
+    """
+    Returns the distinct values available for each filterable field,
+    so the frontend can build dropdowns without hardcoding options.
+    """
+    conditions = pd.read_sql_query("SELECT DISTINCT condition FROM subjects", conn)["condition"].tolist()
+    treatments = pd.read_sql_query("SELECT DISTINCT treatment FROM subjects", conn)["treatment"].tolist()
+    sample_types = pd.read_sql_query("SELECT DISTINCT sample_type FROM samples", conn)["sample_type"].tolist()
+    timepoints = pd.read_sql_query(
+        "SELECT DISTINCT time_from_treatment_start FROM samples WHERE time_from_treatment_start IS NOT NULL",
+        conn,
+    )["time_from_treatment_start"].tolist()
+
+    return {
+        "conditions": sorted(conditions),
+        "treatments": sorted(treatments),
+        "sample_types": sorted(sample_types),
+        "timepoints": sorted(timepoints),
+    }
 
 def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
     """
