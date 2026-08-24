@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ExportButton from './ExportButton'
 
 const HEADERS = [
   { key: 'population', label: 'Population' },
@@ -40,11 +41,14 @@ function FindingsTable({ stats, onJumpTo }) {
 
   return (
     <div className="bg-white shadow rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100">
-        <h3 className="text-sm font-semibold text-slate-700">Statistical Findings</h3>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Click a column to sort. FDR corrected significance shown in bold.
-        </p>
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Statistical Findings</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Click a column to sort. FDR corrected significance shown in bold.
+          </p>
+        </div>
+        <ExportButton filename="statistical_findings.csv" rows={sorted} label="Export" />
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">

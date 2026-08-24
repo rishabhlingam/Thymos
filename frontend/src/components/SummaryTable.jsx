@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TableSkeleton } from './Skeleton'
 import Breadcrumb from './Breadcrumb'
+import ExportButton from './ExportButton'
 import { useApiData } from '../hooks/useApiData'
 
 function SummaryTable() {
@@ -25,12 +26,24 @@ function SummaryTable() {
     setPage(1)
   }, [search, population])
 
-  const pageButtonClass = (active) =>
+    const pageButtonClass = (active) =>
     `px-3 py-1 rounded-lg text-sm border transition-colors ${
       active
         ? 'bg-accent text-white border-accent'
         : 'border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40'
     }`
+
+  const handleExportAll = async () => {
+    const params = new URLSearchParams({
+      sample_search: search,
+      population,
+      page: 1,
+      page_size: totalSamples > 0 ? totalSamples : 100000,
+    })
+    const res = await fetch(`/api/summary?${params}`)
+    const json = await res.json()
+    return json.rows
+  }
 
   return (
     <div className="space-y-4">
@@ -68,6 +81,11 @@ function SummaryTable() {
               >
                 Next
               </button>
+              <ExportButton
+                filename="population_frequencies.csv"
+                onClick={handleExportAll}
+                label="Export all"
+              />
             </div>
           </div>
 

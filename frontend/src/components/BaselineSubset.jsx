@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import FilterBar from './FilterBar'
 import Breadcrumb from './Breadcrumb'
+import ExportButton from './ExportButton'
 import { CardSkeleton } from './Skeleton'
 import { useApiData } from '../hooks/useApiData'
 
@@ -47,6 +48,24 @@ function BaselineSubset() {
 
   const { data: subset, loading, error } = useApiData('/api/baseline-subset', filters)
 
+  const buildExportRows = () => {
+    if (!subset) return []
+    const rows = []
+    Object.entries(subset.samples_per_project).forEach(([value, count]) =>
+      rows.push({ category: 'Project', value, count })
+    )
+    Object.entries(subset.subjects_by_response).forEach(([value, count]) =>
+      rows.push({ category: 'Response', value, count })
+    )
+    Object.entries(subset.subjects_by_sex).forEach(([value, count]) =>
+      rows.push({ category: 'Sex', value, count })
+    )
+    Object.entries(subset.subjects_by_age_group).forEach(([value, count]) =>
+      rows.push({ category: 'Age Group', value, count })
+    )
+    return rows
+  }
+
   return (
     <div className="space-y-4">
       <Breadcrumb
@@ -59,12 +78,19 @@ function BaselineSubset() {
       <FilterBar filters={filters} onChange={setFilters} excludeTreatments={['none']} />
 
       <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">Subset Breakdown</h2>
-          <p className="text-sm text-slate-500">
-            {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated,
-            timepoint {filters.time_from_treatment_start}
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Subset Breakdown</h2>
+            <p className="text-sm text-slate-500">
+              {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated,
+              timepoint {filters.time_from_treatment_start}
+            </p>
+          </div>
+          <ExportButton
+            filename="baseline_subset_breakdown.csv"
+            rows={buildExportRows()}
+            label="Export"
+          />
         </div>
 
         {error && <p className="text-red-600">Error, {error}</p>}
