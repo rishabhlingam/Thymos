@@ -78,3 +78,24 @@ class FilterOptionsResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database: str
+
+class PCAPoint(BaseModel):
+    sample: str
+    subject_id: str
+    response: Optional[str] = None
+    sex: str
+    project_id: str
+    pc1: float
+    pc2: float
+
+
+class PCALoading(BaseModel):
+    population: str
+    pc1_loading: float
+    pc2_loading: float
+
+
+class PCAResponse(BaseModel):
+    points: list[PCAPoint]
+    variance_explained: list[float]
+    loadings: list[PCALoading]

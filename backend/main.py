@@ -17,6 +17,7 @@ from analysis import (
     get_baseline_subset,
     summarize_baseline_subset,
     get_filter_options,
+    get_sample_pca,
 )
 from backend.schemas import (
     Condition,
@@ -27,6 +28,7 @@ from backend.schemas import (
     BaselineSubsetResponse,
     FilterOptionsResponse,
     HealthResponse,
+    PCAResponse,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -142,3 +144,22 @@ def filter_options():
     options = get_filter_options(conn)
     conn.close()
     return options
+
+@lru_cache(maxsize=128)
+def _cached_pca(condition: str, treatment: str, sample_type: str):
+    conn = get_connection()
+    df, variance_explained, loadings = get_sample_pca(conn, condition, treatment, sample_type)
+    conn.close()
+
+    points = df.where(pd.notnull(df), None).to_dict(orient="records") if not df.empty else []
+
+    return {"points": points, "variance_explained": variance_explained, "loadings": loadings}
+
+
+@app.get("/api/pca", response_model=PCAResponse)
+def pca(
+    condition: Condition = Condition.melanoma,
+    treatment: Treatment = Treatment.miraclib,
+    sample_type: SampleType = SampleType.PBMC,
+):
+    return _cached_pca(condition.value, treatment.value, sample_type.value)

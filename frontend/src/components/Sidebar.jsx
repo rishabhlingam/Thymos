@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Table2, Activity, Users, ChevronLeft } from 'lucide-react'
+import { LayoutDashboard, Table2, Activity, Users, ScatterChart, ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 
 const sections = [
@@ -14,6 +14,7 @@ const sections = [
     items: [
       { to: '/populations', label: 'Population Frequencies', icon: Table2 },
       { to: '/baseline', label: 'Baseline Subset', icon: Users },
+      { to: '/similarity', label: 'Sample Similarity', icon: ScatterChart },
     ],
   },
   {

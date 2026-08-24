@@ -4,6 +4,7 @@ import Overview from './components/Overview'
 import SummaryTable from './components/SummaryTable'
 import ResponderBoxplot from './components/ResponderBoxplot'
 import BaselineSubset from './components/BaselineSubset'
+import SamplePCA from './components/SamplePCA'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="populations" element={<SummaryTable />} />
           <Route path="responders" element={<ResponderBoxplot />} />
           <Route path="baseline" element={<BaselineSubset />} />
+          <Route path="similarity" element={<SamplePCA />} />
         </Route>
       </Routes>
     </BrowserRouter>

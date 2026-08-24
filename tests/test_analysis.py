@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 
 from load_data import SCHEMA
+
 from analysis import (
     get_summary_table,
     get_responder_comparison_data,
@@ -22,6 +23,7 @@ from analysis import (
     get_baseline_subset,
     summarize_baseline_subset,
     get_filter_options,
+    get_sample_pca,
     _parse_sample_search,
 )
 
@@ -342,3 +344,78 @@ def test_parse_sample_search_combination_of_range_and_terms():
     assert "BETWEEN" in where_clause
     assert "LIKE" in where_clause
     assert params == ["sample00001", "sample00003", "%sample00050%"]
+
+# ---------------------------------------------------------------------
+# get_sample_pca
+# ---------------------------------------------------------------------
+
+def test_sample_pca_returns_one_row_per_sample(conn):
+    df, variance, loadings = get_sample_pca(conn, "melanoma", "miraclib", "PBMC")
+    assert len(df) == 3
+    assert set(df["sample"]) == {"sampleA", "sampleB", "sampleC"}
+
+
+def test_sample_pca_has_expected_columns(conn):
+    df, variance, loadings = get_sample_pca(conn, "melanoma", "miraclib", "PBMC")
+    expected_cols = ["sample", "subject_id", "response", "sex", "project_id", "pc1", "pc2"]
+    assert list(df.columns) == expected_cols
+
+
+def test_sample_pca_variance_explained_is_two_values_summing_under_one(conn):
+    df, variance, loadings = get_sample_pca(conn, "melanoma", "miraclib", "PBMC")
+    assert len(variance) == 2
+    assert sum(variance) <= 1.0001
+    assert all(v >= 0 for v in variance)
+
+
+def test_sample_pca_empty_for_unmatched_filter(conn):
+    df, variance, loadings = get_sample_pca(conn, "carcinoma", "phauximab", "WB")
+    assert df.empty
+    assert variance == []
+
+
+def test_pca_requires_at_least_two_samples(conn):
+    """
+    PCA needs at least two samples to define any variance, a single
+    matching sample should return an empty result rather than crash.
+    """
+    conn.execute(
+        """INSERT INTO subjects
+           (subject_id, project_id, condition, age, sex, treatment, response)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        ("sbj999", "prj1", "carcinoma", 55, "F", "miraclib", "yes"),
+    )
+    conn.execute(
+        """INSERT INTO samples
+           (sample_id, subject_id, sample_type, time_from_treatment_start)
+           VALUES (?, ?, ?, ?)""",
+        ("sampleZ", "sbj999", "PBMC", 0),
+    )
+    for population, count in zip(
+        ["b_cell", "cd4_t_cell", "cd8_t_cell", "monocyte", "nk_cell"],
+        [100, 200, 300, 250, 150],
+    ):
+        conn.execute(
+            "INSERT INTO cell_counts (sample_id, population, count) VALUES (?, ?, ?)",
+            ("sampleZ", population, count),
+        )
+    conn.commit()
+
+    df, variance, loadings = get_sample_pca(conn, condition="carcinoma", treatment="miraclib", sample_type="PBMC")
+    assert df.empty
+    assert variance == []
+
+def test_pca_loadings_one_entry_per_population(conn):
+    df, variance, loadings = get_sample_pca(conn, "melanoma", "miraclib", "PBMC")
+    assert len(loadings) == 5
+    assert {l["population"] for l in loadings} == {
+        "b_cell", "cd4_t_cell", "cd8_t_cell", "monocyte", "nk_cell",
+    }
+    for l in loadings:
+        assert "pc1_loading" in l
+        assert "pc2_loading" in l
+
+
+def test_pca_loadings_empty_when_no_data(conn):
+    df, variance, loadings = get_sample_pca(conn, "carcinoma", "phauximab", "WB")
+    assert loadings == []

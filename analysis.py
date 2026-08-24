@@ -1,10 +1,19 @@
+"""
+analysis.py
+
+Contains the core analysis functions for Parts 2 through 4,
+plus a main() that runs the full pipeline and saves outputs.
+"""
+
 import logging
 import os
 import sqlite3
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import mannwhitneyu, false_discovery_control
+from sklearn.decomposition import PCA
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,9 +25,6 @@ OUTPUT_DIR = "outputs"
 def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
     """
     Part 2, relative frequency of each cell population per sample.
-
-    Returns a dataframe with columns
-    sample, total_count, population, count, percentage
     """
     query = """
         SELECT sample_id AS sample, population, count
@@ -36,19 +42,12 @@ def get_summary_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return df
 
+
 def _parse_sample_search(search: str):
     """
     Parses a sample search string into a SQL WHERE clause fragment and params.
     Supports comma separated terms, colon separated inclusive ranges, and
-    combinations of both, e.g.
-
-    sample00001                              substring match
-    sample00001,sample00005                  multiple matches
-    sample00001:sample00010                  inclusive range
-    sample00001:sample00010,sample00050      combination
-
-    Ranges rely on sample IDs being zero padded to a fixed width, so string
-    comparison sorts the same as numeric comparison.
+    combinations of both.
     """
     search = search.strip()
     if not search:
@@ -84,6 +83,7 @@ def _parse_sample_search(search: str):
 
     return "(" + " OR ".join(clauses) + ")", params
 
+
 def get_summary_page(
     conn: sqlite3.Connection,
     sample_search: str = "",
@@ -92,9 +92,7 @@ def get_summary_page(
     page_size: int = 50,
 ):
     """
-    Paginated, searchable version of the Part 2 summary table, used by the dashboard.
-    sample_search supports comma separated terms and colon separated ranges,
-    see _parse_sample_search for details.
+    Paginated, searchable version of the Part 2 summary table.
     """
     offset = (page - 1) * page_size
     where_clause, where_params = _parse_sample_search(sample_search)
@@ -135,6 +133,7 @@ def get_summary_page(
 
     return df, int(total_samples)
 
+
 def get_responder_comparison_data(
     conn: sqlite3.Connection,
     condition: str = "melanoma",
@@ -143,7 +142,6 @@ def get_responder_comparison_data(
 ) -> pd.DataFrame:
     """
     Part 3, filtered data for responder vs non-responder comparison.
-    Defaults match the original assignment, melanoma, miraclib, PBMC.
     """
     query = """
         SELECT
@@ -166,6 +164,7 @@ def get_responder_comparison_data(
     df["percentage"] = (df["count"] / df["total_count"]) * 100
 
     return df
+
 
 def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -281,6 +280,7 @@ def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:
         plt.close()
         logger.info(f"Saved {out_path}")
 
+
 def get_baseline_subset(
     conn: sqlite3.Connection,
     condition: str = "melanoma",
@@ -314,25 +314,6 @@ def get_baseline_subset(
 AGE_GROUP_BINS = [0, 59, 69, 200]
 AGE_GROUP_LABELS = ["Under 60", "60-69", "70 and Over"]
 
-def get_filter_options(conn: sqlite3.Connection) -> dict:
-    """
-    Returns the distinct values available for each filterable field,
-    so the frontend can build dropdowns without hardcoding options.
-    """
-    conditions = pd.read_sql_query("SELECT DISTINCT condition FROM subjects", conn)["condition"].tolist()
-    treatments = pd.read_sql_query("SELECT DISTINCT treatment FROM subjects", conn)["treatment"].tolist()
-    sample_types = pd.read_sql_query("SELECT DISTINCT sample_type FROM samples", conn)["sample_type"].tolist()
-    timepoints = pd.read_sql_query(
-        "SELECT DISTINCT time_from_treatment_start FROM samples WHERE time_from_treatment_start IS NOT NULL",
-        conn,
-    )["time_from_treatment_start"].tolist()
-
-    return {
-        "conditions": sorted(conditions),
-        "treatments": sorted(treatments),
-        "sample_types": sorted(sample_types),
-        "timepoints": sorted(timepoints),
-    }
 
 def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
     """
@@ -355,6 +336,112 @@ def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
         "subjects_by_age_group": subjects_df["age_group"].value_counts().reindex(AGE_GROUP_LABELS),
     }
 
+
+def get_filter_options(conn: sqlite3.Connection) -> dict:
+    """
+    Returns the distinct values available for each filterable field.
+    """
+    conditions = pd.read_sql_query("SELECT DISTINCT condition FROM subjects", conn)["condition"].tolist()
+    treatments = pd.read_sql_query("SELECT DISTINCT treatment FROM subjects", conn)["treatment"].tolist()
+    sample_types = pd.read_sql_query("SELECT DISTINCT sample_type FROM samples", conn)["sample_type"].tolist()
+    timepoints = pd.read_sql_query(
+        "SELECT DISTINCT time_from_treatment_start FROM samples WHERE time_from_treatment_start IS NOT NULL",
+        conn,
+    )["time_from_treatment_start"].tolist()
+
+    return {
+        "conditions": sorted(conditions),
+        "treatments": sorted(treatments),
+        "sample_types": sorted(sample_types),
+        "timepoints": sorted(timepoints),
+    }
+
+
+POPULATIONS = ["b_cell", "cd4_t_cell", "cd8_t_cell", "monocyte", "nk_cell"]
+
+
+def get_sample_pca(
+    conn: sqlite3.Connection,
+    condition: str = "melanoma",
+    treatment: str = "miraclib",
+    sample_type: str = "PBMC",
+):
+    """
+    PCA projection of samples based on their five population percentages.
+
+    Since the five percentages always sum to 100, there are only four
+    real degrees of freedom here, not five. This is fine for the first
+    two components, which is all we use for a 2D scatter, but worth
+    knowing, the fifth component will carry essentially zero variance.
+
+    Returns a tuple of three things.
+    - a dataframe with sample, subject_id, response, sex, project_id,
+      pc1, pc2, one row per sample, this is where each sample sits.
+    - a list with the variance explained by pc1 and pc2 respectively.
+    - a list of loadings, one entry per population, showing how much
+      and in which direction each population contributes to pc1 and
+      pc2. This is what the "Key Drivers" style biplot draws as arrows,
+      complementary to the sample scatter, not a replacement for it.
+    """
+    result_cols = ["sample", "subject_id", "response", "sex", "project_id", "pc1", "pc2"]
+
+    query = """
+        SELECT
+            s.sample_id AS sample,
+            sub.subject_id,
+            sub.response,
+            sub.sex,
+            sub.project_id,
+            cc.population,
+            cc.count
+        FROM samples s
+        JOIN subjects sub ON s.subject_id = sub.subject_id
+        JOIN cell_counts cc ON cc.sample_id = s.sample_id
+        WHERE sub.condition = ?
+          AND sub.treatment = ?
+          AND s.sample_type = ?
+    """
+    long_df = pd.read_sql_query(query, conn, params=[condition, treatment, sample_type])
+
+    if long_df.empty:
+        return pd.DataFrame(columns=result_cols), [], []
+
+    totals = long_df.groupby("sample")["count"].sum().rename("total_count")
+    long_df = long_df.merge(totals, on="sample")
+    long_df["percentage"] = (long_df["count"] / long_df["total_count"]) * 100
+
+    wide_df = long_df.pivot_table(
+        index=["sample", "subject_id", "response", "sex", "project_id"],
+        columns="population",
+        values="percentage",
+    ).reset_index()
+    wide_df.columns.name = None
+
+    if len(wide_df) < 2:
+        # PCA needs at least 2 samples to define any variance at all
+        return pd.DataFrame(columns=result_cols), [], []
+
+    X = wide_df[POPULATIONS].values
+
+    pca = PCA(n_components=2)
+    coords = pca.fit_transform(X)
+    wide_df["pc1"] = coords[:, 0]
+    wide_df["pc2"] = coords[:, 1]
+
+    variance_explained = pca.explained_variance_ratio_.tolist()
+
+    loadings = [
+        {
+            "population": pop,
+            "pc1_loading": float(pca.components_[0][i]),
+            "pc2_loading": float(pca.components_[1][i]),
+        }
+        for i, pop in enumerate(POPULATIONS)
+    ]
+
+    return wide_df[result_cols], variance_explained, loadings
+
+
 def main():
     if not os.path.exists(DB_PATH):
         logger.error(f"Could not find {DB_PATH}. Run load_data.py first.")
@@ -371,14 +458,13 @@ def main():
 
     comparison_df = get_responder_comparison_data(conn)
     print()
-    logger.info(f"Part 3, filtered sample count: {comparison_df['sample'].nunique()}")
-    logger.info("Part 3, responder breakdown:")
+    print("Part 3, filtered sample count:", comparison_df["sample"].nunique())
+    print("Part 3, responder breakdown:")
     print(comparison_df.drop_duplicates("subject_id")["response"].value_counts())
 
     stats_df = run_statistical_comparison(comparison_df)
     stats_path = os.path.join(OUTPUT_DIR, "statistical_comparison.csv")
     stats_df.to_csv(stats_path, index=False)
-    print()
     logger.info(f"Part 3, statistical comparison saved to {stats_path}")
     print(stats_df)
 
@@ -389,17 +475,16 @@ def main():
     baseline_df.to_csv(baseline_path, index=False)
 
     summary = summarize_baseline_subset(baseline_df)
-    print()
     logger.info(f"Part 4, baseline subset saved to {baseline_path}")
-    logger.info(f"Total baseline samples: {baseline_df['sample'].nunique()}")
+    print("Total baseline samples:", baseline_df["sample"].nunique())
     print()
-    logger.info("Samples per project")
+    print("Samples per project")
     print(summary["samples_per_project"])
     print()
-    logger.info("Subjects by response")
+    print("Subjects by response")
     print(summary["subjects_by_response"])
     print()
-    logger.info("Subjects by sex")
+    print("Subjects by sex")
     print(summary["subjects_by_sex"])
 
     conn.close()
