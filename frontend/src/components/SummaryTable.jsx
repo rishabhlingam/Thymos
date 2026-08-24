@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { TableSkeleton } from './Skeleton'
+import Breadcrumb from './Breadcrumb'
 import { useApiData } from '../hooks/useApiData'
 
 function SummaryTable() {
@@ -20,125 +21,48 @@ function SummaryTable() {
   const totalPages = data?.total_pages ?? 1
   const totalSamples = data?.total_samples ?? 0
 
-  // reset to page 1 whenever the search or population filter changes
   useEffect(() => {
     setPage(1)
   }, [search, population])
 
+  const pageButtonClass = (active) =>
+    `px-3 py-1 rounded-lg text-sm border transition-colors ${
+      active
+        ? 'bg-accent text-white border-accent'
+        : 'border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40'
+    }`
+
   return (
-    <div className="bg-white shadow rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 space-y-3">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">
-              Cell Population Frequencies
-            </h2>
-            <p className="text-sm text-slate-500">
-              {totalSamples.toLocaleString()} samples total
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <span>Page {page} of {totalPages.toLocaleString()}</span>
-            <button
-              className="px-3 py-1 border border-slate-300 rounded disabled:opacity-40"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </button>
-            <button
-              className="px-3 py-1 border border-slate-300 rounded disabled:opacity-40"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </button>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <Breadcrumb
+        items={[
+          { label: 'View', value: 'Population Frequencies' },
+          { label: 'Population', value: population || 'All' },
+        ]}
+      />
 
-        <div className="flex flex-wrap gap-3 items-start">
-          <div>
-            <input
-              type="text"
-              placeholder="e.g. sample00001, sample00005:sample00010"
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-80"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <p className="text-xs text-slate-400 mt-1">
-              Comma for multiple IDs, colon for a range, or combine both
-            </p>
-          </div>
-          <select
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-            value={population}
-            onChange={(e) => setPopulation(e.target.value)}
-          >
-            <option value="">All populations</option>
-            <option value="b_cell">b_cell</option>
-            <option value="cd4_t_cell">cd4_t_cell</option>
-            <option value="cd8_t_cell">cd8_t_cell</option>
-            <option value="monocyte">monocyte</option>
-            <option value="nk_cell">nk_cell</option>
-          </select>
-        </div>
-      </div>
-
-      {error && <p className="text-red-600 px-6 py-4">Error, {error}</p>}
-
-      {!error && (
-        <>
-          <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-            {loading ? (
-              <TableSkeleton rows={10} />
-            ) : (
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 sticky top-0 z-10">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium text-slate-600">Sample</th>
-                    <th className="text-left px-4 py-2 font-medium text-slate-600">Population</th>
-                    <th className="text-right px-4 py-2 font-medium text-slate-600">Count</th>
-                    <th className="text-right px-4 py-2 font-medium text-slate-600">Total Count</th>
-                    <th className="text-right px-4 py-2 font-medium text-slate-600">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                        No matching samples
-                      </td>
-                    </tr>
-                  ) : (
-                    rows.map((row, i) => (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="px-4 py-2 text-slate-700">{row.sample}</td>
-                        <td className="px-4 py-2 text-slate-700">{row.population}</td>
-                        <td className="px-4 py-2 text-right text-slate-700">{row.count}</td>
-                        <td className="px-4 py-2 text-right text-slate-700">{row.total_count}</td>
-                        <td className="px-4 py-2 text-right text-slate-700">
-                          {row.percentage.toFixed(2)}%
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 text-sm text-slate-600">
-            <span>Page {page} of {totalPages.toLocaleString()}</span>
-            <div className="flex gap-2">
+      <div className="bg-white shadow rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 space-y-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">
+                Cell Population Frequencies
+              </h2>
+              <p className="text-sm text-slate-500">
+                {totalSamples.toLocaleString()} samples total
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span>Page {page} of {totalPages.toLocaleString()}</span>
               <button
-                className="px-3 py-1 border border-slate-300 rounded disabled:opacity-40"
+                className={pageButtonClass(false)}
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 Previous
               </button>
               <button
-                className="px-3 py-1 border border-slate-300 rounded disabled:opacity-40"
+                className={pageButtonClass(false)}
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
@@ -146,8 +70,100 @@ function SummaryTable() {
               </button>
             </div>
           </div>
-        </>
-      )}
+
+          <div className="flex flex-wrap gap-3 items-start">
+            <div>
+              <input
+                type="text"
+                placeholder="e.g. sample00001, sample00005:sample00010"
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm w-80 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Comma for multiple IDs, colon for a range, or combine both
+              </p>
+            </div>
+            <select
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+              value={population}
+              onChange={(e) => setPopulation(e.target.value)}
+            >
+              <option value="">All populations</option>
+              <option value="b_cell">b_cell</option>
+              <option value="cd4_t_cell">cd4_t_cell</option>
+              <option value="cd8_t_cell">cd8_t_cell</option>
+              <option value="monocyte">monocyte</option>
+              <option value="nk_cell">nk_cell</option>
+            </select>
+          </div>
+        </div>
+
+        {error && <p className="text-red-600 px-6 py-4">Error, {error}</p>}
+
+        {!error && (
+          <>
+            <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+              {loading ? (
+                <TableSkeleton rows={10} />
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-slate-600">Sample</th>
+                      <th className="text-left px-4 py-2 font-medium text-slate-600">Population</th>
+                      <th className="text-right px-4 py-2 font-medium text-slate-600">Count</th>
+                      <th className="text-right px-4 py-2 font-medium text-slate-600">Total Count</th>
+                      <th className="text-right px-4 py-2 font-medium text-slate-600">Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                          No matching samples
+                        </td>
+                      </tr>
+                    ) : (
+                      rows.map((row, i) => (
+                        <tr key={i} className="border-t border-slate-100">
+                          <td className="px-4 py-2 text-slate-700">{row.sample}</td>
+                          <td className="px-4 py-2 text-slate-700">{row.population}</td>
+                          <td className="px-4 py-2 text-right text-slate-700">{row.count}</td>
+                          <td className="px-4 py-2 text-right text-slate-700">{row.total_count}</td>
+                          <td className="px-4 py-2 text-right text-slate-700">
+                            {row.percentage.toFixed(2)}%
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 text-sm text-slate-600">
+              <span>Page {page} of {totalPages.toLocaleString()}</span>
+              <div className="flex gap-2">
+                <button
+                  className={pageButtonClass(false)}
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <button
+                  className={pageButtonClass(false)}
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

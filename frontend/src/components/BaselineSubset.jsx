@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import FilterBar from './FilterBar'
+import Breadcrumb from './Breadcrumb'
 import { CardSkeleton } from './Skeleton'
 import { useApiData } from '../hooks/useApiData'
 
@@ -7,7 +8,7 @@ function StatCard({ label, value }) {
   return (
     <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
       <p className="text-xs text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className="text-xl font-semibold text-slate-800">{value}</p>
+      <p className="text-xl font-semibold text-accent">{value}</p>
     </div>
   )
 }
@@ -48,6 +49,13 @@ function BaselineSubset() {
 
   return (
     <div className="space-y-4">
+      <Breadcrumb
+        items={[
+          { label: 'View', value: 'Baseline Subset' },
+          { label: 'Timepoint', value: filters.time_from_treatment_start === 0 ? 'Baseline' : `Day ${filters.time_from_treatment_start}` },
+        ]}
+      />
+
       <FilterBar filters={filters} onChange={setFilters} excludeTreatments={['none']} />
 
       <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">

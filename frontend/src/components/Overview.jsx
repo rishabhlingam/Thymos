@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import Breadcrumb from './Breadcrumb'
 
 function KpiCard({ label, value }) {
   return (
     <div className="bg-white shadow rounded-xl border border-slate-200 p-6">
       <p className="text-sm text-slate-500">{label}</p>
-      <p className="text-3xl font-bold text-slate-800 mt-1">{value}</p>
+      <p className="text-3xl font-bold text-accent mt-1">{value}</p>
     </div>
   )
 }
@@ -21,9 +22,11 @@ function Overview() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb items={[{ label: 'View', value: 'Overview' }]} />
+
       <p className="text-slate-600">
         This dashboard summarizes immune cell population data from the miraclib
-        clinical trial. Use the tabs above to explore population frequencies,
+        clinical trial. Use the sidebar to explore population frequencies,
         responder comparisons, and baseline subset breakdowns.
       </p>
       {stats && (

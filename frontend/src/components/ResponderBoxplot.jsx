@@ -1,5 +1,6 @@
 import Plot from 'react-plotly.js'
 import FilterBar from './FilterBar'
+import Breadcrumb from './Breadcrumb'
 import { ChartGridSkeleton } from './Skeleton'
 import { useApiData } from '../hooks/useApiData'
 import { useState } from 'react'
@@ -51,44 +52,116 @@ function buildHoverOverlay(vals, label, xaxis, yaxis) {
   }
 }
 
+const BOX_COLOR = '#b3aede'
+const BOX_LINE_COLOR = '#8983c7'
+
 function ResponderBoxplot() {
   const [filters, setFilters] = useState({
     condition: 'melanoma',
     treatment: 'miraclib',
     sample_type: 'PBMC',
   })
+  const [sortBy, setSortBy] = useState('alphabetical')
+  const [sameYAxis, setSameYAxis] = useState(false)
 
   const { data, loading, error } = useApiData('/api/comparison', filters)
 
   const dataPoints = data?.data_points ?? []
   const stats = data?.stats ?? []
-  const populations = [...new Set(dataPoints.map((d) => d.population))].sort()
+
+  const populations = [...new Set(dataPoints.map((d) => d.population))]
+  const sortedPopulations =
+    sortBy === 'significance'
+      ? [...populations].sort((a, b) => {
+          const statA = stats.find((s) => s.population === a)
+          const statB = stats.find((s) => s.population === b)
+          const pA = statA?.p_value ?? 1
+          const pB = statB?.p_value ?? 1
+          return pA - pB
+        })
+      : [...populations].sort()
+
+  const allPercentages = dataPoints.map((d) => d.percentage)
+  const globalMin = allPercentages.length ? Math.min(...allPercentages) : 0
+  const globalMax = allPercentages.length ? Math.max(...allPercentages) : 1
+  const globalPad = (globalMax - globalMin) * 0.1 || 1
+  const globalRange = [Math.max(0, globalMin - globalPad), globalMax + globalPad]
+
+  const hoverlabelStyle = {
+    bgcolor: '#1e293b',
+    bordercolor: '#1e293b',
+    font: { color: '#ffffff', size: 12 },
+  }
 
   return (
     <div className="space-y-4">
+      <Breadcrumb
+        items={[
+          { label: 'Endpoint', value: 'Response' },
+          { label: 'Treatment', value: filters.treatment },
+          { label: 'Sort By', value: sortBy === 'significance' ? 'Significance' : 'Alphabetical' },
+        ]}
+      />
+
       <FilterBar filters={filters} onChange={setFilters} excludeTreatments={['none']} />
 
       <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">
-            Response to Miraclib
-          </h2>
-          <p className="text-sm text-slate-500">
-            {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated patients
-          </p>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">
+              Population Frequencies
+            </h2>
+            <p className="text-sm text-slate-500">
+              {filters.condition}, {filters.sample_type} samples, {filters.treatment} treated patients
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="block text-[10px] font-semibold tracking-wider text-slate-400 uppercase mb-1">
+                Sort by
+              </label>
+              <select
+                className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="alphabetical">Alphabetical</option>
+                <option value="significance">Significance</option>
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+              <span>Same Y-axis across all plots</span>
+              <button
+                type="button"
+                onClick={() => setSameYAxis((v) => !v)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  sameYAxis ? 'bg-accent' : 'bg-slate-200'
+                }`}
+                aria-pressed={sameYAxis}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    sameYAxis ? 'translate-x-4' : ''
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
         </div>
 
         {error && <p className="text-red-600">Error, {error}</p>}
 
         {loading && !error && <ChartGridSkeleton count={4} />}
 
-        {!loading && !error && populations.length === 0 && (
+        {!loading && !error && sortedPopulations.length === 0 && (
           <p className="text-slate-500">No data available for this filter combination.</p>
         )}
 
-        {!loading && !error && populations.length > 0 && (
+        {!loading && !error && sortedPopulations.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {populations.map((population) => {
+            {sortedPopulations.map((population) => {
               const popStats = stats.find((s) => s.population === population)
               const responderVals = dataPoints
                 .filter((d) => d.population === population && d.response === 'yes')
@@ -97,38 +170,39 @@ function ResponderBoxplot() {
                 .filter((d) => d.population === population && d.response === 'no')
                 .map((d) => d.percentage)
 
-              const allVals = [...nonResponderVals, ...responderVals]
-              const yMin = allVals.length ? Math.min(...allVals) : 0
-              const yMax = allVals.length ? Math.max(...allVals) : 1
-              const pad = (yMax - yMin) * 0.1 || 1
-              const yRange = [Math.max(0, yMin - pad), yMax + pad]
+              const localAllVals = [...nonResponderVals, ...responderVals]
+              const localMin = localAllVals.length ? Math.min(...localAllVals) : 0
+              const localMax = localAllVals.length ? Math.max(...localAllVals) : 1
+              const localPad = (localMax - localMin) * 0.1 || 1
+              const localRange = [Math.max(0, localMin - localPad), localMax + localPad]
 
-              const hoverlabelStyle = {
-                bgcolor: '#1e293b',
-                bordercolor: '#1e293b',
-                font: { color: '#ffffff', size: 12 },
-              }
+              const yRange = sameYAxis ? globalRange : localRange
 
-              const noOverlay = buildHoverOverlay(nonResponderVals, 'no', 'x', 'y')
-              const yesOverlay = buildHoverOverlay(responderVals, 'yes', 'x2', 'y2')
+              const nonResponderLabel = `Nonresponder (n=${nonResponderVals.length})`
+              const responderLabel = `Responder (n=${responderVals.length})`
+
+              const noOverlay = buildHoverOverlay(nonResponderVals, nonResponderLabel, 'x', 'y')
+              const yesOverlay = buildHoverOverlay(responderVals, responderLabel, 'x2', 'y2')
 
               const plotData = [
                 {
-                  x: nonResponderVals.map(() => 'no'),
+                  x: nonResponderVals.map(() => nonResponderLabel),
                   y: nonResponderVals,
                   type: 'box',
-                  name: 'no',
-                  marker: { color: '#94a3b8' },
+                  name: 'Nonresponder',
+                  marker: { color: BOX_COLOR },
+                  line: { color: BOX_LINE_COLOR },
                   xaxis: 'x',
                   yaxis: 'y',
                   hoverinfo: 'skip',
                 },
                 {
-                  x: responderVals.map(() => 'yes'),
+                  x: responderVals.map(() => responderLabel),
                   y: responderVals,
                   type: 'box',
-                  name: 'yes',
-                  marker: { color: '#0ea5e9' },
+                  name: 'Responder',
+                  marker: { color: BOX_COLOR },
+                  line: { color: BOX_LINE_COLOR },
                   xaxis: 'x2',
                   yaxis: 'y2',
                   hoverinfo: 'skip',
@@ -140,41 +214,32 @@ function ResponderBoxplot() {
               return (
                 <div key={population} className="border border-slate-100 rounded-lg p-3">
                   <div className="mb-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-slate-700">{population}</h3>
-                    {popStats && (
-                      <span
-                        className={
-                          popStats.significant
-                            ? 'text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700'
-                            : 'text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-slate-500'
-                        }
-                      >
-                        p = {popStats.p_value !== null ? popStats.p_value.toFixed(4) : 'N/A'}
-                        {popStats.significant ? ', significant' : ''}
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-slate-700">{population}</h3>
+                      <span className="text-xs text-slate-500">
+                        P-Value: {popStats?.p_value != null ? popStats.p_value.toFixed(3) : 'N/A'}
                       </span>
+                    </div>
+                    {popStats && popStats.auc != null && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        AUC {popStats.auc.toFixed(2)}, effect size {popStats.effect_size >= 0 ? '+' : ''}
+                        {popStats.effect_size.toFixed(3)}
+                      </p>
                     )}
                   </div>
-                  {popStats && popStats.auc != null && (
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      AUC {popStats.auc.toFixed(2)}, effect size {popStats.effect_size >= 0 ? '+' : ''}
-                      {popStats.effect_size.toFixed(3)}
-                    </p>
-                  )}
-                </div>
 
                   <Plot
                     data={plotData}
                     layout={{
                       height: 300,
-                      margin: { t: 10, b: 30, l: 40, r: 10 },
+                      margin: { t: 10, b: 40, l: 40, r: 10 },
                       autosize: true,
                       hovermode: 'closest',
                       showlegend: false,
                       barmode: 'overlay',
                       hoverlabel: hoverlabelStyle,
-                      xaxis: { domain: [0, 0.46], anchor: 'y', fixedrange: true, title: 'response' },
-                      xaxis2: { domain: [0.54, 1], anchor: 'y2', fixedrange: true, title: 'response' },
+                      xaxis: { domain: [0, 0.46], anchor: 'y', fixedrange: true },
+                      xaxis2: { domain: [0.54, 1], anchor: 'y2', fixedrange: true },
                       yaxis: { domain: [0, 1], range: yRange, title: '% of cells', anchor: 'x' },
                       yaxis2: { domain: [0, 1], range: yRange, showticklabels: false, anchor: 'x2' },
                     }}
