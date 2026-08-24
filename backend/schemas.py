@@ -65,6 +65,7 @@ class BaselineSubsetResponse(BaseModel):
     samples_per_project: dict[str, int]
     subjects_by_response: dict[str, int]
     subjects_by_sex: dict[str, int]
+    subjects_by_age_group: dict[str, int]
 
 
 class FilterOptionsResponse(BaseModel):

@@ -120,6 +120,7 @@ def _cached_baseline_subset(condition: str, treatment: str, sample_type: str, ti
         "samples_per_project": summary_dict["samples_per_project"].to_dict(),
         "subjects_by_response": summary_dict["subjects_by_response"].to_dict(),
         "subjects_by_sex": summary_dict["subjects_by_sex"].to_dict(),
+        "subjects_by_age_group": summary_dict["subjects_by_age_group"].to_dict(),
     }
 
 

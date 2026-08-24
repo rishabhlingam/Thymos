@@ -290,7 +290,6 @@ def get_baseline_subset(
 ) -> pd.DataFrame:
     """
     Part 4, filtered baseline samples.
-    Defaults match the original assignment, melanoma, miraclib, PBMC, day 0.
     """
     query = """
         SELECT
@@ -298,7 +297,8 @@ def get_baseline_subset(
             sub.subject_id,
             sub.project_id,
             sub.response,
-            sub.sex
+            sub.sex,
+            sub.age
         FROM samples s
         JOIN subjects sub ON s.subject_id = sub.subject_id
         WHERE sub.condition = ?
@@ -309,6 +309,10 @@ def get_baseline_subset(
     return pd.read_sql_query(
         query, conn, params=[condition, treatment, sample_type, time_from_treatment_start]
     )
+
+
+AGE_GROUP_BINS = [0, 59, 69, 200]
+AGE_GROUP_LABELS = ["Under 60", "60-69", "70 and Over"]
 
 def get_filter_options(conn: sqlite3.Connection) -> dict:
     """
@@ -332,14 +336,23 @@ def get_filter_options(conn: sqlite3.Connection) -> dict:
 
 def summarize_baseline_subset(baseline_df: pd.DataFrame) -> dict:
     """
-    Part 4, breakdowns by project, response, and sex.
+    Part 4, breakdowns by project, response, sex, and age group.
+
+    Age group bins, Under 60, 60-69, 70 and Over, were chosen after
+    checking the actual age distribution in this dataset, ages range
+    50 to 79, these three bins split the cohort roughly evenly rather
+    than using generic decade buckets that wouldn't fit this population.
     """
-    subjects_df = baseline_df.drop_duplicates("subject_id")
+    subjects_df = baseline_df.drop_duplicates("subject_id").copy()
+    subjects_df["age_group"] = pd.cut(
+        subjects_df["age"], bins=AGE_GROUP_BINS, labels=AGE_GROUP_LABELS
+    )
 
     return {
         "samples_per_project": baseline_df.groupby("project_id")["sample"].nunique(),
         "subjects_by_response": subjects_df["response"].value_counts(),
         "subjects_by_sex": subjects_df["sex"].value_counts(),
+        "subjects_by_age_group": subjects_df["age_group"].value_counts().reindex(AGE_GROUP_LABELS),
     }
 
 def main():

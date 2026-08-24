@@ -276,6 +276,21 @@ def test_summarize_baseline_subset_breakdowns(conn):
     assert summary["samples_per_project"]["prj1"] == 2
     assert summary["samples_per_project"]["prj2"] == 1
 
+def test_summarize_baseline_subset_age_groups(conn):
+    """
+    Fixture ages at melanoma + miraclib + PBMC + baseline are
+    sbj000=45, sbj001=50, sbj002=60, so Under 60 should have 2 subjects,
+    60-69 should have 1, and 70 and Over should be genuinely empty,
+    confirmed as 0 rather than missing or NaN.
+    """
+    baseline_df = get_baseline_subset(conn, "melanoma", "miraclib", "PBMC", 0)
+    summary = summarize_baseline_subset(baseline_df)
+
+    age_groups = summary["subjects_by_age_group"]
+    assert age_groups["Under 60"] == 2
+    assert age_groups["60-69"] == 1
+    assert age_groups["70 and Over"] == 0
+    assert not age_groups.isnull().any()
 
 # ---------------------------------------------------------------------
 # get_filter_options

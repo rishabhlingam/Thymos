@@ -78,10 +78,11 @@ function BaselineSubset() {
         {!loading && !error && subset && subset.total_samples > 0 && (
           <>
             <StatCard label="Total samples" value={subset.total_samples} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <BreakdownList title="Samples per project" breakdown={subset.samples_per_project} />
               <BreakdownList title="Subjects by response" breakdown={subset.subjects_by_response} />
               <BreakdownList title="Subjects by sex" breakdown={subset.subjects_by_sex} />
+              <BreakdownList title="Subjects by age group" breakdown={subset.subjects_by_age_group} />
             </div>
           </>
         )}
