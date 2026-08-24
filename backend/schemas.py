@@ -49,6 +49,8 @@ class PopulationStats(BaseModel):
     non_responder_median_pct: Optional[float] = None
     p_value: Optional[float] = None
     significant: bool
+    effect_size: Optional[float] = None
+    auc: Optional[float] = None
 
 
 class ComparisonResponse(BaseModel):

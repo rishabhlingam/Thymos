@@ -1,3 +1,14 @@
+"""
+tests/test_analysis.py
+
+Unit tests for the core analysis functions in analysis.py.
+
+Uses a small, hand built in-memory database rather than the real
+cell-count.db, so tests are fast, deterministic, and check exact
+known scenarios rather than whatever happens to be true about the
+real dataset at any given time.
+"""
+
 import sqlite3
 
 import pandas as pd
@@ -126,7 +137,10 @@ def test_statistical_comparison_returns_one_row_per_population(conn):
 def test_statistical_comparison_has_expected_columns(conn):
     comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
     stats_df = run_statistical_comparison(comparison_df)
-    expected_cols = ["population", "responder_median_pct", "non_responder_median_pct", "p_value", "significant"]
+    expected_cols = [
+        "population", "responder_median_pct", "non_responder_median_pct",
+        "p_value", "significant", "effect_size", "auc",
+    ]
     assert list(stats_df.columns) == expected_cols
 
 
@@ -134,14 +148,18 @@ def test_statistical_comparison_handles_completely_empty_input():
     empty_df = pd.DataFrame(columns=["sample", "subject_id", "response", "population", "count", "total_count", "percentage"])
     stats_df = run_statistical_comparison(empty_df)
     assert stats_df.empty
-    expected_cols = ["population", "responder_median_pct", "non_responder_median_pct", "p_value", "significant"]
+    expected_cols = [
+        "population", "responder_median_pct", "non_responder_median_pct",
+        "p_value", "significant", "effect_size", "auc",
+    ]
     assert list(stats_df.columns) == expected_cols
 
 
 def test_statistical_comparison_handles_missing_group(conn):
     """
     If every sample in the filtered set is a responder (or non-responder),
-    the function should not crash, and should return null p-values instead.
+    the function should not crash, and should return null p-values and
+    null effect sizes instead.
     """
     comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
     responders_only = comparison_df[comparison_df["response"] == "yes"]
@@ -149,7 +167,57 @@ def test_statistical_comparison_handles_missing_group(conn):
     stats_df = run_statistical_comparison(responders_only)
     assert len(stats_df) == 5
     assert stats_df["p_value"].isnull().all()
+    assert stats_df["effect_size"].isnull().all()
+    assert stats_df["auc"].isnull().all()
     assert (stats_df["significant"] == False).all()
+
+
+def test_effect_size_and_auc_known_values(conn):
+    """
+    Hand-computed against the fixture data. Percentages work out to:
+    b_cell:     responders [10, 12], non-responder [9]  -> both responders higher
+    cd4_t_cell: responders [20, 18], non-responder [21] -> both responders lower
+
+    For b_cell, both responder values exceed the single non-responder value,
+    so this population perfectly separates the two groups in this direction,
+    auc should be 1.0 and effect_size should be 1.0.
+
+    For cd4_t_cell, both responder values are below the non-responder value,
+    the perfect separation the other direction, auc should be 0.0 and
+    effect_size should be -1.0.
+    """
+    comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
+    stats_df = run_statistical_comparison(comparison_df)
+
+    b_cell_row = stats_df[stats_df["population"] == "b_cell"].iloc[0]
+    assert b_cell_row["auc"] == pytest.approx(1.0)
+    assert b_cell_row["effect_size"] == pytest.approx(1.0)
+
+    cd4_row = stats_df[stats_df["population"] == "cd4_t_cell"].iloc[0]
+    assert cd4_row["auc"] == pytest.approx(0.0)
+    assert cd4_row["effect_size"] == pytest.approx(-1.0)
+
+
+def test_effect_size_matches_auc_relationship(conn):
+    """
+    effect_size and auc are two views of the same underlying statistic,
+    effect_size should always equal (2 * auc) - 1.
+    """
+    comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
+    stats_df = run_statistical_comparison(comparison_df)
+
+    for _, row in stats_df.iterrows():
+        assert row["effect_size"] == pytest.approx((2 * row["auc"]) - 1)
+
+
+def test_auc_and_effect_size_within_valid_ranges(conn):
+    comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
+    stats_df = run_statistical_comparison(comparison_df)
+
+    assert (stats_df["auc"] >= 0).all()
+    assert (stats_df["auc"] <= 1).all()
+    assert (stats_df["effect_size"] >= -1).all()
+    assert (stats_df["effect_size"] <= 1).all()
 
 
 # ---------------------------------------------------------------------

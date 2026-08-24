@@ -139,7 +139,8 @@ function ResponderBoxplot() {
 
               return (
                 <div key={population} className="border border-slate-100 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="mb-1">
+                  <div className="flex items-center justify-between">
                     <h3 className="font-medium text-slate-700">{population}</h3>
                     {popStats && (
                       <span
@@ -154,6 +155,13 @@ function ResponderBoxplot() {
                       </span>
                     )}
                   </div>
+                  {popStats && popStats.auc != null && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      AUC {popStats.auc.toFixed(2)}, effect size {popStats.effect_size >= 0 ? '+' : ''}
+                      {popStats.effect_size.toFixed(3)}
+                    </p>
+                  )}
+                </div>
 
                   <Plot
                     data={plotData}

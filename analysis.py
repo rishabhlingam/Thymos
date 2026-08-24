@@ -170,10 +170,30 @@ def get_responder_comparison_data(
 def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
     """
     Mann-Whitney U test per population, responders vs non-responders.
-    Returns an empty, correctly shaped dataframe if there's no data
-    or no valid comparison to run.
+
+    Alongside the p-value, this reports two effect size measures derived
+    from the same U statistic:
+
+    - effect_size (rank biserial correlation), ranges -1 to 1. Positive
+      means responders trend higher than non-responders for that
+      population, negative means the reverse. Magnitude reflects how
+      separated the two groups are, independent of sample size, unlike
+      the p-value which conflates the two.
+    - auc, ranges 0 to 1. Treats the population's percentage as a simple
+      one-feature classifier for response, 0.5 means no better than
+      chance, 1.0 means perfect separation. auc = (effect_size + 1) / 2,
+      it's the same underlying rank statistic expressed as a probability
+      instead of a correlation.
+
+    A population can be statistically significant (low p-value) while
+    still having auc close to 0.5, this means the group difference is
+    real but the two distributions overlap too much to reliably predict
+    an individual's response from that population alone.
     """
-    columns = ["population", "responder_median_pct", "non_responder_median_pct", "p_value", "significant"]
+    columns = [
+        "population", "responder_median_pct", "non_responder_median_pct",
+        "p_value", "significant", "effect_size", "auc",
+    ]
 
     if comparison_df.empty:
         return pd.DataFrame(columns=columns)
@@ -193,10 +213,16 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
                 "non_responder_median_pct": non_responders.median() if len(non_responders) else None,
                 "p_value": None,
                 "significant": False,
+                "effect_size": None,
+                "auc": None,
             })
             continue
 
         stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided")
+
+        n1, n2 = len(responders), len(non_responders)
+        auc = stat / (n1 * n2)
+        effect_size = (2 * auc) - 1
 
         results.append({
             "population": population,
@@ -204,6 +230,8 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
             "non_responder_median_pct": non_responders.median(),
             "p_value": p_value,
             "significant": p_value < 0.05,
+            "effect_size": effect_size,
+            "auc": auc,
         })
 
     if not results:
