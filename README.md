@@ -69,8 +69,6 @@ Every table uses its natural identifier as the primary key. Foreign keys and ind
 
 **Scaling.** More projects, subjects, or samples are just more rows, no schema changes. A new cell population is more rows in cell_counts, not a new column. New subject or sample level attributes are additive columns. At real scale, hundreds of projects and millions of cell count rows, this would move to a server based database like PostgreSQL, the table structure itself would carry over unchanged.
 
-A more detailed writeup, including the verification queries run against the real dataset, is in SCHEMA_DESIGN.md.
-
 ## Code Structure
 
 ```
