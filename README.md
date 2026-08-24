@@ -1,4 +1,6 @@
-# Thymos, Immune Cell Population Dashboard
+# Thymos: An Immune Cell Population Dashboard
+
+![Thymos Dashboard](docs/Thymos_SS.jpg)
 
 A data pipeline and interactive dashboard for exploring immune cell population frequencies from clinical trial samples, and investigating how they relate to treatment response.
 
