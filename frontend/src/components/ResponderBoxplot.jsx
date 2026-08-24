@@ -1,6 +1,8 @@
 import Plot from 'react-plotly.js'
 import FilterBar from './FilterBar'
 import Breadcrumb from './Breadcrumb'
+import ExplainerBox from './ExplainerBox'
+import FindingsTable from './FindingsTable'
 import { ChartGridSkeleton } from './Skeleton'
 import { useApiData } from '../hooks/useApiData'
 import { useState } from 'react'
@@ -93,6 +95,10 @@ function ResponderBoxplot() {
     font: { color: '#ffffff', size: 12 },
   }
 
+  const handleJumpTo = (population) => {
+    document.getElementById(`chart-${population}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
     <div className="space-y-4">
       <Breadcrumb
@@ -104,6 +110,27 @@ function ResponderBoxplot() {
       />
 
       <FilterBar filters={filters} onChange={setFilters} excludeTreatments={['none']} />
+
+      <ExplainerBox title="What does FDR mean here?">
+        <p>
+          The P-value column tests one population at a time. Testing all five
+          populations together increases the chance that at least one looks
+          significant purely by chance, even if nothing real is going on. The
+          FDR column corrects for this by accounting for how many populations
+          were tested together. A population is only robustly significant
+          here if its FDR value is below 0.05, shown in bold in the table below.
+        </p>
+        <p>
+          Watch for populations where the raw P-value looks significant but
+          the FDR value does not, that gap means the difference is suggestive
+          rather than confirmed, worth stating plainly rather than overclaiming
+          a single population as a reliable predictor.
+        </p>
+      </ExplainerBox>
+
+      {!loading && !error && stats.length > 0 && (
+        <FindingsTable stats={stats} onJumpTo={handleJumpTo} />
+      )}
 
       <div className="bg-white shadow rounded-xl border border-slate-200 p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -212,7 +239,7 @@ function ResponderBoxplot() {
               if (yesOverlay) plotData.push(yesOverlay)
 
               return (
-                <div key={population} className="border border-slate-100 rounded-lg p-3">
+                <div key={population} id={`chart-${population}`} className="border border-slate-100 rounded-lg p-3">
                   <div className="mb-1">
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium text-slate-700">{population}</h3>
@@ -223,7 +250,7 @@ function ResponderBoxplot() {
                     {popStats && popStats.auc != null && (
                       <p className="text-xs text-slate-400 mt-0.5">
                         AUC {popStats.auc.toFixed(2)}, effect size {popStats.effect_size >= 0 ? '+' : ''}
-                        {popStats.effect_size.toFixed(3)}
+                        {popStats.effect_size.toFixed(3)}, FDR {popStats.fdr != null ? popStats.fdr.toFixed(3) : 'N/A'}
                       </p>
                     )}
                   </div>

@@ -51,6 +51,8 @@ class PopulationStats(BaseModel):
     significant: bool
     effect_size: Optional[float] = None
     auc: Optional[float] = None
+    fdr: Optional[float] = None
+    significant_fdr: bool = False
 
 
 class ComparisonResponse(BaseModel):

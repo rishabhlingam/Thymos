@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import mannwhitneyu
+from scipy.stats import mannwhitneyu, false_discovery_control
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -189,10 +189,18 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
     still having auc close to 0.5, this means the group difference is
     real but the two distributions overlap too much to reliably predict
     an individual's response from that population alone.
+
+    Also reports fdr, the Benjamini-Hochberg false discovery rate
+    corrected p-value, computed jointly across every population tested
+    here. Testing multiple populations inflates the chance that at least
+    one looks significant purely by chance, fdr corrects for this.
+    significant_fdr uses this corrected value rather than the raw
+    p-value, and is the more defensible claim when reporting findings,
+    since it accounts for the number of populations tested at once.
     """
     columns = [
         "population", "responder_median_pct", "non_responder_median_pct",
-        "p_value", "significant", "effect_size", "auc",
+        "p_value", "significant", "effect_size", "auc", "fdr", "significant_fdr",
     ]
 
     if comparison_df.empty:
@@ -237,7 +245,17 @@ def run_statistical_comparison(comparison_df: pd.DataFrame) -> pd.DataFrame:
     if not results:
         return pd.DataFrame(columns=columns)
 
-    return pd.DataFrame(results).sort_values("p_value", na_position="last").reset_index(drop=True)
+    df = pd.DataFrame(results)
+
+    valid_mask = df["p_value"].notna()
+    df["fdr"] = None
+    if valid_mask.sum() > 0:
+        fdr_values = false_discovery_control(df.loc[valid_mask, "p_value"].values, method="bh")
+        df.loc[valid_mask, "fdr"] = fdr_values
+
+    df["significant_fdr"] = df["fdr"].apply(lambda x: bool(x < 0.05) if pd.notna(x) else False)
+
+    return df.sort_values("p_value", na_position="last").reset_index(drop=True)[columns]
 
 
 def make_boxplots(comparison_df: pd.DataFrame, output_dir: str) -> None:

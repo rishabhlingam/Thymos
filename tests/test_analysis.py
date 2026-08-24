@@ -139,7 +139,7 @@ def test_statistical_comparison_has_expected_columns(conn):
     stats_df = run_statistical_comparison(comparison_df)
     expected_cols = [
         "population", "responder_median_pct", "non_responder_median_pct",
-        "p_value", "significant", "effect_size", "auc",
+        "p_value", "significant", "effect_size", "auc", "fdr", "significant_fdr",
     ]
     assert list(stats_df.columns) == expected_cols
 
@@ -150,7 +150,7 @@ def test_statistical_comparison_handles_completely_empty_input():
     assert stats_df.empty
     expected_cols = [
         "population", "responder_median_pct", "non_responder_median_pct",
-        "p_value", "significant", "effect_size", "auc",
+        "p_value", "significant", "effect_size", "auc", "fdr", "significant_fdr",
     ]
     assert list(stats_df.columns) == expected_cols
 
@@ -218,6 +218,38 @@ def test_auc_and_effect_size_within_valid_ranges(conn):
     assert (stats_df["auc"] <= 1).all()
     assert (stats_df["effect_size"] >= -1).all()
     assert (stats_df["effect_size"] <= 1).all()
+
+
+def test_fdr_correction_is_never_smaller_than_raw_pvalue(conn):
+    """
+    Benjamini-Hochberg correction only ever inflates or preserves a
+    p-value, it should never make a result look more significant than
+    the raw test did.
+    """
+    comparison_df = get_responder_comparison_data(conn, "melanoma", "miraclib", "PBMC")
+    stats_df = run_statistical_comparison(comparison_df)
+
+    for _, row in stats_df.iterrows():
+        assert row["fdr"] >= row["p_value"] - 1e-9
+
+
+def test_fdr_correction_handles_single_population():
+    """
+    With only one population tested, FDR correction has nothing to
+    correct against, the adjusted value should equal the raw p-value.
+    """
+    df = pd.DataFrame({
+        "sample": ["s1", "s2", "s3", "s4"],
+        "subject_id": ["sub1", "sub2", "sub3", "sub4"],
+        "response": ["yes", "yes", "no", "no"],
+        "population": ["b_cell"] * 4,
+        "count": [10, 12, 9, 8],
+        "total_count": [100, 100, 100, 100],
+        "percentage": [10, 12, 9, 8],
+    })
+    stats_df = run_statistical_comparison(df)
+    assert len(stats_df) == 1
+    assert stats_df.iloc[0]["fdr"] == pytest.approx(stats_df.iloc[0]["p_value"])
 
 
 # ---------------------------------------------------------------------
