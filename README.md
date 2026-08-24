@@ -63,7 +63,7 @@ Once `make dashboard` is running, Codespaces forwards port 5173 automatically. O
 
 Four tables, projects, subjects, samples, and cell_counts.
 
-![Database schema diagram](docs/schema-diagram.svg)
+![Database schema diagram](docs/schema-diagram.jpg)
 
 Populations are stored as rows in cell_counts rather than as fixed columns, so adding a new population later is an insert, not a schema change. Subject level fields, condition, age, sex, treatment, response, live on subjects rather than being repeated per sample, since they don't vary within a subject. response is nullable, it's only meaningful for subjects who received a treatment being evaluated.
 
